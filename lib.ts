@@ -79,6 +79,40 @@ export function parseTranslatedTranscript(
 	return entries;
 }
 
+export function createSRTLikeFormat(segments: SRTSegment[]): string {
+	return segments
+		.map((segment) => `${segment.sequence}\n${segment.text}`)
+		.join("\n\n");
+}
+
+export function parseSRTLikeFormat(srtLikeText: string): TranscriptEntry[] {
+	const entries: TranscriptEntry[] = [];
+	const blocks = srtLikeText
+		.split(/\n\s*\n/)
+		.filter((block) => block.trim().length > 0);
+
+	for (const block of blocks) {
+		const lines = block.trim().split("\n");
+		if (lines.length < 2) continue;
+
+		const firstLine = lines[0];
+		if (!firstLine) continue;
+
+		const sequence = parseInt(firstLine.trim(), 10);
+		if (Number.isNaN(sequence)) continue;
+
+		const text = lines.slice(1).join("\n").trim();
+		if (text) {
+			entries.push({
+				number: sequence,
+				text,
+			});
+		}
+	}
+
+	return entries;
+}
+
 export function reconstructSRT(
 	originalSegments: SRTSegment[],
 	translatedEntries: TranscriptEntry[],
@@ -266,6 +300,120 @@ function analyzeTranslationFailure(
 	return { missingNumbers, extraNumbers, sequenceGaps, insights };
 }
 
+interface ChunkInfo {
+	segments: SRTSegment[];
+	contextSegments: SRTSegment[];
+	translateSegments: SRTSegment[];
+	chunkIndex: number;
+	totalChunks: number;
+}
+
+function detectNaturalBreaks(segments: SRTSegment[]): number[] {
+	const breaks: number[] = [];
+
+	for (let i = 0; i < segments.length - 1; i++) {
+		const current = segments[i];
+		const next = segments[i + 1];
+
+		if (!current || !next) continue;
+
+		// Parse timestamps to detect longer gaps
+		const currentEnd = parseTimestamp(current.endTime);
+		const nextStart = parseTimestamp(next.startTime);
+
+		// If there's a gap of more than 3 seconds, consider it a natural break
+		if (nextStart - currentEnd > 3000) {
+			breaks.push(i + 1); // Break after current segment
+		}
+	}
+
+	return breaks;
+}
+
+function parseTimestamp(timestamp: string): number {
+	const match = timestamp.match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})/);
+	if (!match) return 0;
+
+	const hours = parseInt(match[1]!, 10);
+	const minutes = parseInt(match[2]!, 10);
+	const seconds = parseInt(match[3]!, 10);
+	const milliseconds = parseInt(match[4]!, 10);
+
+	return hours * 3600000 + minutes * 60000 + seconds * 1000 + milliseconds;
+}
+
+function createIntelligentChunks(
+	segments: SRTSegment[],
+	maxChunkSize: number = 25,
+	contextSize: number = 3,
+): ChunkInfo[] {
+	if (segments.length <= maxChunkSize) {
+		// No chunking needed
+		return [
+			{
+				segments,
+				contextSegments: [],
+				translateSegments: segments,
+				chunkIndex: 0,
+				totalChunks: 1,
+			},
+		];
+	}
+
+	const chunks: ChunkInfo[] = [];
+	const naturalBreaks = detectNaturalBreaks(segments);
+
+	let currentIndex = 0;
+	let chunkIndex = 0;
+
+	while (currentIndex < segments.length) {
+		const remainingSegments = segments.length - currentIndex;
+		let chunkSize = Math.min(maxChunkSize, remainingSegments);
+
+		// Try to find a natural break within the chunk
+		const chunkEnd = currentIndex + chunkSize;
+		const nearbyBreak = naturalBreaks.find(
+			(breakPoint) =>
+				breakPoint > currentIndex + Math.floor(chunkSize * 0.7) &&
+				breakPoint <= chunkEnd,
+		);
+
+		if (nearbyBreak && nearbyBreak < segments.length) {
+			chunkSize = nearbyBreak - currentIndex;
+		}
+
+		// Get context segments from previous chunk
+		const contextStart = Math.max(0, currentIndex - contextSize);
+		const contextSegments =
+			currentIndex > 0 ? segments.slice(contextStart, currentIndex) : [];
+
+		// Get segments to translate in this chunk
+		const translateSegments = segments.slice(
+			currentIndex,
+			currentIndex + chunkSize,
+		);
+
+		// All segments for this chunk (context + translate)
+		const allSegments = [...contextSegments, ...translateSegments];
+
+		chunks.push({
+			segments: allSegments,
+			contextSegments,
+			translateSegments,
+			chunkIndex,
+			totalChunks: 0, // Will be set after all chunks are created
+		});
+
+		currentIndex += chunkSize;
+		chunkIndex++;
+	}
+
+	// Set total chunks count
+	chunks.forEach((chunk) => (chunk.totalChunks = chunks.length));
+
+	return chunks;
+}
+
 export function validateTranslation(
 	originalSegments: SRTSegment[],
 	translatedEntries: TranscriptEntry[],
@@ -306,6 +454,103 @@ export function countSRTSegments(srtContent: string): number {
 	return parseSRTContent(srtContent).length;
 }
 
+async function translateChunk(
+	model: GoogleGenAI,
+	chunk: ChunkInfo,
+	sourceLanguage: string,
+	targetLanguage: string,
+	logger: pino.Logger,
+): Promise<{
+	entries: TranscriptEntry[];
+	rawInput: string;
+	rawOutput: string;
+}> {
+	const contextText =
+		chunk.contextSegments.length > 0
+			? chunk.contextSegments
+					.map((segment) => `${segment.sequence}\n${segment.text}`)
+					.join("\n\n")
+			: "";
+
+	const translateText = chunk.translateSegments
+		.map((segment) => `${segment.sequence}\n${segment.text}`)
+		.join("\n\n");
+
+	const translateSegmentNumbers = chunk.translateSegments.map(
+		(s) => s.sequence,
+	);
+
+	let prompt = `You are a professional subtitles translator. Translate the following subtitles from ${sourceLanguage} to ${targetLanguage}.
+
+CONTEXT AND TRANSLATION INSTRUCTIONS:
+- This is chunk ${chunk.chunkIndex + 1} of ${chunk.totalChunks}
+- You will see some segments for CONTEXT ONLY, then segments to TRANSLATE
+- ONLY translate the segments listed in the "TRANSLATE THESE SEGMENTS" section
+- Context segments help you understand the flow but should NOT be included in your output
+
+`;
+
+	if (chunk.contextSegments.length > 0) {
+		prompt += `CONTEXT ONLY (do not translate these):
+${contextText}
+
+--- END OF CONTEXT ---
+
+`;
+	}
+
+	prompt += `TRANSLATE THESE SEGMENTS (segments ${translateSegmentNumbers.join(", ")}):
+${translateText}
+
+CRITICAL RULES:
+- Output EXACTLY ${chunk.translateSegments.length} segments (${translateSegmentNumbers.join(", ")})
+- Use SRT-like format: number on one line, translated text on following lines, blank line between segments
+- Translate each segment independently - NO merging content across segments
+- Preserve HTML tags like <i>, <b>, {\\an8} exactly as shown
+- Preserve line breaks within subtitle text exactly as they appear
+- Translate descriptions in square brackets (e.g., [music playing])
+
+EXAMPLE OUTPUT FORMAT:
+${translateSegmentNumbers[0]}
+[translated text for segment ${translateSegmentNumbers[0]}]
+
+${translateSegmentNumbers[1] || translateSegmentNumbers[0]! + 1}
+[translated text for segment ${translateSegmentNumbers[1] || translateSegmentNumbers[0]! + 1}]
+
+Remember: Output ONLY the ${chunk.translateSegments.length} segments listed above, maintaining exact 1:1 mapping.`;
+
+	const stream = await model.models.generateContentStream({
+		model: "gemini-2.5-flash",
+		contents: prompt,
+	});
+
+	let translatedContent = "";
+	for await (const streamChunk of stream) {
+		translatedContent += streamChunk.text || "";
+	}
+
+	const finalContent = translatedContent.trim();
+	const translatedEntries = parseSRTLikeFormat(finalContent);
+
+	logger.debug(
+		{
+			chunkIndex: chunk.chunkIndex,
+			contextSegments: chunk.contextSegments.length,
+			translateSegments: chunk.translateSegments.length,
+			translatedEntries: translatedEntries.length,
+			expectedSegments: translateSegmentNumbers,
+			actualSegments: translatedEntries.map((e) => e.number),
+		},
+		"Translated chunk",
+	);
+
+	return {
+		entries: translatedEntries,
+		rawInput: prompt,
+		rawOutput: finalContent,
+	};
+}
+
 export async function translateTranscript(
 	model: GoogleGenAI,
 	transcript: TranscriptEntry[],
@@ -330,93 +575,80 @@ export async function translateTranscript(
 			sourceLanguage,
 			targetLanguage,
 		},
-		"Translating transcript with Gemini",
+		"Translating transcript with Gemini using intelligent chunking",
 	);
 
-	const transcriptText = transcript
-		.map((entry) => `${entry.number}: ${entry.text}`)
-		.join("\n");
+	// Convert transcript entries back to segments for chunking analysis
+	const segments: SRTSegment[] = transcript.map((entry) => ({
+		sequence: entry.number,
+		startTime: "00:00:00,000", // Dummy timestamp for chunking
+		endTime: "00:00:00,000", // Dummy timestamp for chunking
+		text: entry.text,
+	}));
 
-	const prompt = `You are a professional subtitles translator. Translate the following transcript from ${sourceLanguage} to ${targetLanguage}.
+	// Create intelligent chunks with context
+	const chunks = createIntelligentChunks(segments, 25, 3);
 
-CRITICAL FORMAT REQUIREMENTS:
-- Each line must follow EXACTLY this format: "number: translated text"
-- Translate ONLY the text after the colon (:), NEVER change the numbers
-- You MUST include ALL ${transcript.length} entries in your response
-- Maintain the exact same line structure and numbering sequence
-- Translate descriptions in square brackets (e.g., [music playing]) to their equivalent in the target language.
-- Do NOT add any explanations, comments, or extra text before or after
+	logger.debug(
+		{
+			totalSegments,
+			numberOfChunks: chunks.length,
+			chunkSizes: chunks.map((c) => c.translateSegments.length),
+		},
+		"Created intelligent chunks for translation",
+	);
 
-TRANSLATION GUIDELINES:
-- Make translations natural and appropriate for subtitles
-- For text in square brackets (like [music playing] or [gunshot]), translate the description of the sound.
-- Preserve HTML tags like <i>, <b>, {\\an8} if present
-- Keep line breaks within subtitle text exactly as they appear
-- Ensure cultural context is appropriate for the target language
+	const allTranslatedEntries: TranscriptEntry[] = [];
+	const allRawInputs: string[] = [];
+	const allRawOutputs: string[] = [];
 
-EXAMPLE FORMAT:
-If given:
-1: Hello there
-2: How are you?
+	for (let i = 0; i < chunks.length; i++) {
+		const chunk = chunks[i]!;
 
-You should respond:
-1: [translation of "Hello there"]
-2: [translation of "How are you?"]
+		logger.debug(
+			{
+				chunkIndex: i,
+				contextSegments: chunk.contextSegments.map((s) => s.sequence),
+				translateSegments: chunk.translateSegments.map((s) => s.sequence),
+			},
+			"Processing chunk",
+		);
 
-Original transcript to translate:
+		const chunkResult = await translateChunk(
+			model,
+			chunk,
+			sourceLanguage,
+			targetLanguage,
+			logger,
+		);
 
-${transcriptText}
+		allTranslatedEntries.push(...chunkResult.entries);
+		allRawInputs.push(chunkResult.rawInput);
+		allRawOutputs.push(chunkResult.rawOutput);
 
-REMEMBER: Respond with EXACTLY ${transcript.length} lines in the format "number: translated text" with no additional content.`;
+		// Update progress
+		if (onProgress) {
+			const completed = allTranslatedEntries.length;
+			const percentage = Math.round((completed / totalSegments) * 100);
+			onProgress({
+				completed,
+				total: totalSegments,
+				percentage,
+			});
+		}
 
-	const stream = await model.models.generateContentStream({
-		model: "gemini-2.5-flash",
-		contents: prompt,
-	});
-
-	let translatedContent = "";
-	let lastReportedPercentage = 0;
+		logger.debug(
+			{
+				chunkIndex: i,
+				chunkTranslated: chunkResult.entries.length,
+				totalTranslated: allTranslatedEntries.length,
+				remaining: totalSegments - allTranslatedEntries.length,
+			},
+			"Chunk translation completed",
+		);
+	}
 
 	if (onProgress) {
-		onProgress({ completed: 0, total: totalSegments, percentage: 0 });
-	}
-
-	for await (const chunk of stream) {
-		const chunkText = chunk.text || "";
-		translatedContent += chunkText;
-
-		if (onProgress) {
-			const completedLines = translatedContent
-				.split("\n")
-				.filter((line) => line.trim().length > 0 && line.includes(":")).length;
-
-			const percentage = Math.min(
-				100,
-				Math.round((completedLines / totalSegments) * 100),
-			);
-
-			if (percentage > lastReportedPercentage) {
-				onProgress({
-					completed: completedLines,
-					total: totalSegments,
-					percentage,
-				});
-				lastReportedPercentage = percentage;
-
-				logger.debug(
-					{
-						completed: completedLines,
-						total: totalSegments,
-						percentage,
-						contentLength: translatedContent.length,
-					},
-					"Translation progress update",
-				);
-			}
-		}
-	}
-
-	if (onProgress && lastReportedPercentage < 100) {
 		onProgress({
 			completed: totalSegments,
 			total: totalSegments,
@@ -424,47 +656,21 @@ REMEMBER: Respond with EXACTLY ${transcript.length} lines in the format "number:
 		});
 	}
 
-	const finalContent = translatedContent.trim();
-
 	logger.debug(
 		{
 			originalSegments: totalSegments,
-			translatedLength: finalContent.length,
+			translatedSegments: allTranslatedEntries.length,
 		},
-		"Transcript translation completed",
+		"All chunks translated, assembling final result",
 	);
 
-	const translatedEntries = parseTranslatedTranscript(finalContent);
-
-	logger.debug(
-		{
-			parsedSegments: translatedEntries.length,
-			expectedSegments: totalSegments,
-			sampleEntries: translatedEntries.slice(0, 3).map((e) => ({
-				number: e.number,
-				text: e.text.substring(0, 50) + (e.text.length > 50 ? "..." : ""),
-			})),
-		},
-		"Parsed translated transcript",
-	);
-
-	if (translatedEntries.length === 0) {
-		logger.error(
-			{
-				finalContentPreview: finalContent.substring(0, 500),
-				contentLength: finalContent.length,
-			},
-			"No translated entries were parsed from LLM response",
-		);
-		throw new Error(
-			"Failed to parse any translated entries from LLM response. Check the LLM output format.",
-		);
-	}
+	// Sort translated entries by segment number to ensure correct order
+	allTranslatedEntries.sort((a, b) => a.number - b.number);
 
 	return {
-		translatedEntries,
-		rawInput: prompt,
-		rawOutput: finalContent,
+		translatedEntries: allTranslatedEntries,
+		rawInput: allRawInputs.join("\n\n=== CHUNK SEPARATOR ===\n\n"),
+		rawOutput: allRawOutputs.join("\n\n=== CHUNK SEPARATOR ===\n\n"),
 	};
 }
 

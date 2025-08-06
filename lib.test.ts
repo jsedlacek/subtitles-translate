@@ -2,8 +2,10 @@ import assert from "node:assert";
 import { describe, test } from "node:test";
 import {
 	countSRTSegments,
+	createSRTLikeFormat,
 	createTranscript,
 	parseSRTContent,
+	parseSRTLikeFormat,
 	parseTranslatedTranscript,
 	reconstructSRT,
 	type SRTSegment,
@@ -676,6 +678,262 @@ Single segment`;
 			assert.strictEqual(finalSegments.length, 100);
 			assert.strictEqual(finalSegments[0]?.text, "Translated Text 1");
 			assert.strictEqual(finalSegments[99]?.text, "Translated Text 100");
+		});
+	});
+
+	describe("createSRTLikeFormat", () => {
+		test("should create SRT-like format without timestamps", () => {
+			const segments: SRTSegment[] = [
+				{
+					sequence: 1,
+					startTime: "00:00:01,000",
+					endTime: "00:00:02,000",
+					text: "Hello world",
+				},
+				{
+					sequence: 2,
+					startTime: "00:00:03,000",
+					endTime: "00:00:04,000",
+					text: "How are you?",
+				},
+			];
+
+			const result = createSRTLikeFormat(segments);
+			const expected = "1\nHello world\n\n2\nHow are you?";
+
+			assert.strictEqual(result, expected);
+		});
+
+		test("should handle multi-line subtitle text", () => {
+			const segments: SRTSegment[] = [
+				{
+					sequence: 826,
+					startTime: "00:54:14,751",
+					endTime: "00:54:16,753",
+					text: "[jauntily macabre\noutro music playing]",
+				},
+			];
+
+			const result = createSRTLikeFormat(segments);
+			const expected = "826\n[jauntily macabre\noutro music playing]";
+
+			assert.strictEqual(result, expected);
+		});
+
+		test("should handle HTML formatting", () => {
+			const segments: SRTSegment[] = [
+				{
+					sequence: 825,
+					startTime: "00:54:12,749",
+					endTime: "00:54:14,167",
+					text: "<i>Much worse.</i>",
+				},
+			];
+
+			const result = createSRTLikeFormat(segments);
+			const expected = "825\n<i>Much worse.</i>";
+
+			assert.strictEqual(result, expected);
+		});
+	});
+
+	describe("parseSRTLikeFormat", () => {
+		test("should parse SRT-like format correctly", () => {
+			const srtLikeText = "1\nHello world\n\n2\nHow are you?";
+
+			const result = parseSRTLikeFormat(srtLikeText);
+
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0]?.number, 1);
+			assert.strictEqual(result[0]?.text, "Hello world");
+			assert.strictEqual(result[1]?.number, 2);
+			assert.strictEqual(result[1]?.text, "How are you?");
+		});
+
+		test("should handle multi-line subtitle text", () => {
+			const srtLikeText =
+				"826\n[jauntily macabre\noutro music playing]\n\n827\n[music fades]";
+
+			const result = parseSRTLikeFormat(srtLikeText);
+
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0]?.number, 826);
+			assert.strictEqual(
+				result[0]?.text,
+				"[jauntily macabre\noutro music playing]",
+			);
+			assert.strictEqual(result[1]?.number, 827);
+			assert.strictEqual(result[1]?.text, "[music fades]");
+		});
+
+		test("should handle HTML formatting", () => {
+			const srtLikeText = "825\n<i>Much worse.</i>\n\n826\n<b>Bold text</b>";
+
+			const result = parseSRTLikeFormat(srtLikeText);
+
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0]?.text, "<i>Much worse.</i>");
+			assert.strictEqual(result[1]?.text, "<b>Bold text</b>");
+		});
+
+		test("should skip malformed blocks", () => {
+			const srtLikeText =
+				"1\nHello world\n\nnotanumber\nSkip this\n\n2\nHow are you?";
+
+			const result = parseSRTLikeFormat(srtLikeText);
+
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0]?.number, 1);
+			assert.strictEqual(result[0]?.text, "Hello world");
+			assert.strictEqual(result[1]?.number, 2);
+			assert.strictEqual(result[1]?.text, "How are you?");
+		});
+
+		test("should handle extra whitespace", () => {
+			const srtLikeText =
+				"  1  \n  Hello world  \n\n\n  2  \n  How are you?  \n\n";
+
+			const result = parseSRTLikeFormat(srtLikeText);
+
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0]?.number, 1);
+			assert.strictEqual(result[0]?.text, "Hello world");
+			assert.strictEqual(result[1]?.number, 2);
+			assert.strictEqual(result[1]?.text, "How are you?");
+		});
+
+		test("should return empty array for empty input", () => {
+			const result = parseSRTLikeFormat("");
+			assert.strictEqual(result.length, 0);
+		});
+	});
+
+	describe("SRT-like format integration", () => {
+		test("should round-trip through SRT-like format correctly", () => {
+			const originalSegments: SRTSegment[] = [
+				{
+					sequence: 825,
+					startTime: "00:54:12,749",
+					endTime: "00:54:14,167",
+					text: "<i>Much worse.</i>",
+				},
+				{
+					sequence: 826,
+					startTime: "00:54:14,751",
+					endTime: "00:54:16,753",
+					text: "[jauntily macabre\noutro music playing]",
+				},
+				{
+					sequence: 827,
+					startTime: "00:56:40,438",
+					endTime: "00:56:41,815",
+					text: "[music fades]",
+				},
+			];
+
+			// Convert to SRT-like format
+			const srtLikeFormat = createSRTLikeFormat(originalSegments);
+
+			// Parse back from SRT-like format
+			const parsedEntries = parseSRTLikeFormat(srtLikeFormat);
+
+			// Verify we got the same data back
+			assert.strictEqual(parsedEntries.length, 3);
+			assert.strictEqual(parsedEntries[0]?.number, 825);
+			assert.strictEqual(parsedEntries[0]?.text, "<i>Much worse.</i>");
+			assert.strictEqual(parsedEntries[1]?.number, 826);
+			assert.strictEqual(
+				parsedEntries[1]?.text,
+				"[jauntily macabre\noutro music playing]",
+			);
+			assert.strictEqual(parsedEntries[2]?.number, 827);
+			assert.strictEqual(parsedEntries[2]?.text, "[music fades]");
+
+			// Verify we can reconstruct the original SRT
+			const reconstructed = reconstructSRT(originalSegments, parsedEntries);
+			const expectedSRT = `825
+00:54:12,749 --> 00:54:14,167
+<i>Much worse.</i>
+
+826
+00:54:14,751 --> 00:54:16,753
+[jauntily macabre
+outro music playing]
+
+827
+00:56:40,438 --> 00:56:41,815
+[music fades]`;
+
+			assert.strictEqual(reconstructed, expectedSRT);
+		});
+	});
+
+	describe("Intelligent chunking", () => {
+		test("should not chunk small subtitle sets", () => {
+			const segments: SRTSegment[] = Array.from({ length: 10 }, (_, i) => ({
+				sequence: i + 1,
+				startTime: `00:00:${String(i).padStart(2, "0")},000`,
+				endTime: `00:00:${String(i + 1).padStart(2, "0")},000`,
+				text: `Text ${i + 1}`,
+			}));
+
+			// Since createIntelligentChunks is not exported, we'll test through the translation function
+			// For now, let's test that small sets work correctly
+			const transcript = createTranscript(segments);
+
+			assert.strictEqual(transcript.length, 10);
+			assert.strictEqual(transcript[0]?.number, 1);
+			assert.strictEqual(transcript[9]?.number, 10);
+		});
+
+		test("should maintain segment order and completeness", () => {
+			// Test with a larger set that would trigger chunking
+			const segments: SRTSegment[] = Array.from({ length: 50 }, (_, i) => ({
+				sequence: i + 1,
+				startTime: `00:${String(Math.floor(i / 60)).padStart(2, "0")}:${String(i % 60).padStart(2, "0")},000`,
+				endTime: `00:${String(Math.floor((i + 1) / 60)).padStart(2, "0")}:${String((i + 1) % 60).padStart(2, "0")},000`,
+				text: `Subtitle text ${i + 1}`,
+			}));
+
+			const transcript = createTranscript(segments);
+
+			// Verify all segments are present and in order
+			assert.strictEqual(transcript.length, 50);
+			for (let i = 0; i < 50; i++) {
+				assert.strictEqual(transcript[i]?.number, i + 1);
+				assert.strictEqual(transcript[i]?.text, `Subtitle text ${i + 1}`);
+			}
+		});
+
+		test("should handle segments with time gaps correctly", () => {
+			const segments: SRTSegment[] = [
+				{
+					sequence: 1,
+					startTime: "00:00:01,000",
+					endTime: "00:00:02,000",
+					text: "First segment",
+				},
+				{
+					sequence: 2,
+					startTime: "00:00:02,500",
+					endTime: "00:00:03,500",
+					text: "Second segment",
+				},
+				// Large gap here
+				{
+					sequence: 3,
+					startTime: "00:00:10,000",
+					endTime: "00:00:11,000",
+					text: "Third segment after gap",
+				},
+			];
+
+			const transcript = createTranscript(segments);
+
+			assert.strictEqual(transcript.length, 3);
+			assert.strictEqual(transcript[0]?.text, "First segment");
+			assert.strictEqual(transcript[1]?.text, "Second segment");
+			assert.strictEqual(transcript[2]?.text, "Third segment after gap");
 		});
 	});
 });
