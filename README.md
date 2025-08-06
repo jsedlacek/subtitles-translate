@@ -1,4 +1,4 @@
-# Subtitle Translator
+# Subtitles Translator
 
 A modern TypeScript/Node.js application that downloads subtitles from OpenSubtitles and translates them using Google's Gemini AI.
 
@@ -10,7 +10,7 @@ A modern TypeScript/Node.js application that downloads subtitles from OpenSubtit
 - ⚡ Modern ES modules with top-level await
 - 🚀 Native Node.js APIs (fetch, fs/promises)
 - 🔧 Native Node.js TypeScript transpilation (no build step required)
-- 📝 Support for SRT subtitle format
+- 📝 Support for SRT subtitles format
 - ⚙️ Configurable source and target languages
 - 🏃 Parallel batch processing for performance
 - 🎯 Functional programming approach
@@ -28,7 +28,7 @@ A modern TypeScript/Node.js application that downloads subtitles from OpenSubtit
 1. Clone this repository:
 ```bash
 git clone <repository-url>
-cd subtitle-translate
+cd subtitles-translate
 ```
 
 2. Install dependencies:
@@ -106,16 +106,16 @@ Common language codes you can use:
 
 1. **Login**: Authenticates with OpenSubtitles using the official API
 2. **Search**: Searches OpenSubtitles for subtitles matching your query
-3. **Download**: Downloads the best matching subtitle file using native fetch
-4. **Parse**: Parses the SRT format to extract individual subtitle entries
+3. **Download**: Downloads the best matching subtitles file using native fetch
+4. **Parse**: Parses the SRT format to extract individual subtitles entries
 5. **Translate**: Uses Google Gemini to translate entries in parallel batches
-6. **Generate**: Creates a new translated subtitle file with native Node.js APIs
+6. **Generate**: Creates a new translated subtitles file with native Node.js APIs
 
 ## Output
 
 The script creates a `downloads` directory with:
-- Original subtitle file (e.g., `movie.srt`)
-- Translated subtitle file (e.g., `movie_es.srt`)
+- Original subtitles file (e.g., `movie.srt`)
+- Translated subtitles file (e.g., `movie_es.srt`)
 
 ## Configuration Options
 
@@ -135,20 +135,20 @@ The script creates a `downloads` directory with:
 The script includes comprehensive error handling for:
 - Network connectivity issues
 - Missing API credentials
-- Invalid subtitle formats
+- Invalid subtitles formats
 - Translation API rate limits
 - File system errors
 
-If a translation fails for a specific subtitle entry, the script will keep the original text and continue with the next entry.
+If a translation fails for a specific subtitles entry, the script will keep the original text and continue with the next entry.
 
 ## Rate Limiting
 
 The script translates subtitles in parallel batches of 5 entries with a 1-second delay between batches to respect API rate limits while maximizing performance.
 
-## Supported Subtitle Formats
+## Supported Subtitles Formats
 
 Currently supports:
-- SRT (SubRip Subtitle) - direct download from OpenSubtitles
+- SRT (SubRip Subtitles) - direct download from OpenSubtitles
 
 ## Troubleshooting
 

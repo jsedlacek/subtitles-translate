@@ -11,7 +11,7 @@ import {
 	validateTranslation,
 } from "./lib.ts";
 
-describe("Subtitle Translation Library", () => {
+describe("Subtitles Translation Library", () => {
 	const sampleSRT = `1
 00:00:01,000 --> 00:00:03,500
 Hello, how are you today?

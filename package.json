@@ -1,11 +1,11 @@
 {
-	"name": "subtitle-translate",
+	"name": "subtitles-translate",
 	"version": "1.0.0",
 	"description": "Download subtitles from OpenSubtitles and translate them using Google Gemini AI",
 	"main": "index.ts",
 	"type": "module",
 	"engines": {
-		"node": ">=18.0.0"
+		"node": ">=24.0.0"
 	},
 	"scripts": {
 		"start": "node --env-file=.env --experimental-strip-types index.ts",

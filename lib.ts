@@ -177,7 +177,7 @@ export async function translateTranscript(
 		.map((entry) => `${entry.number}: ${entry.text}`)
 		.join("\n");
 
-	const prompt = `You are a professional subtitle translator. Translate the following transcript from ${sourceLanguage} to ${targetLanguage}.
+	const prompt = `You are a professional subtitles translator. Translate the following transcript from ${sourceLanguage} to ${targetLanguage}.
 
 CRITICAL FORMAT REQUIREMENTS:
 - Each line must follow EXACTLY this format: "number: translated text"

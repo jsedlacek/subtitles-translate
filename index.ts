@@ -115,14 +115,14 @@ async function searchSubtitles(
 		throw new Error("No subtitles found for the given query");
 	}
 
-	logger.info({ count: results.data.length }, "✅ Found subtitle(s)");
+	logger.info({ count: results.data.length }, "✅ Found subtitles");
 	return results.data as SubtitleSearchResult[];
 }
 
 /**
- * Download subtitle file
+ * Download subtitles file
  */
-async function downloadSubtitle(
+async function downloadSubtitles(
 	client: OpenSubtitles,
 	subtitleInfo: SubtitleSearchResult,
 	outputDir: string = "./downloads",
@@ -136,7 +136,7 @@ async function downloadSubtitle(
 			fileId,
 			outputDir,
 		},
-		"⬇  Downloading subtitle",
+		"⬇  Downloading subtitles",
 	);
 
 	// Ensure output directory exists
@@ -146,7 +146,7 @@ async function downloadSubtitle(
 	}
 
 	if (!fileId) {
-		throw new Error("No file ID found for subtitle");
+		throw new Error("No file ID found for subtitles");
 	}
 
 	const downloadInfo: DownloadResponse = await client.download({
@@ -157,7 +157,7 @@ async function downloadSubtitle(
 		throw new Error("Failed to get download link");
 	}
 
-	// Download the subtitle file using native fetch
+	// Download the subtitles file using native fetch
 	const response = await fetch(downloadInfo.link);
 
 	if (!response.ok) {
@@ -165,19 +165,19 @@ async function downloadSubtitle(
 	}
 
 	const buffer = await response.arrayBuffer();
-	const fileName = `${release?.replace(/[/\\?%*:|"<>]/g, "-") || "subtitle"}.srt`;
+	const fileName = `${release?.replace(/[/\\?%*:|"<>]/g, "-") || "subtitles"}.srt`;
 	const filePath = path.join(outputDir, fileName);
 
 	await writeFile(filePath, Buffer.from(buffer));
-	logger.info({ filePath, size: buffer.byteLength }, "✅ Downloaded subtitle");
+	logger.info({ filePath, size: buffer.byteLength }, "✅ Downloaded subtitles");
 
 	return filePath;
 }
 
 /**
- * Translate entire subtitle file content with progress tracking
+ * Translate entire subtitles file content with progress tracking
  */
-async function translateSubtitleFile(
+async function translateSubtitlesFile(
 	model: GoogleGenAI,
 	inputPath: string,
 	outputPath: string,
@@ -191,7 +191,7 @@ async function translateSubtitleFile(
 			sourceLanguage,
 			targetLanguage,
 		},
-		"🌐 Starting subtitle file translation",
+		"🌐 Starting subtitles file translation",
 	);
 
 	// Read the entire SRT content
@@ -207,7 +207,7 @@ async function translateSubtitleFile(
 		"📄 Loaded SRT content for translation",
 	);
 
-	logger.info("🚀 Translating subtitle content");
+	logger.info("🚀 Translating subtitles content");
 
 	try {
 		// Translate the entire SRT content with progress tracking
@@ -229,7 +229,7 @@ async function translateSubtitleFile(
 			},
 		);
 
-		// Write translated subtitle file
+		// Write translated subtitles file
 		await writeFile(outputPath, translatedContent, "utf8");
 		logger.info(
 			{
@@ -237,7 +237,7 @@ async function translateSubtitleFile(
 				translatedLength: translatedContent.length,
 				finalSegments: countSRTSegments(translatedContent),
 			},
-			"✅ Translated subtitle saved",
+			"✅ Translated subtitles saved",
 		);
 
 		return outputPath;
@@ -266,7 +266,7 @@ async function processSubtitlesFromSearch(
 			sourceLanguage: config.sourceLanguage,
 			targetLanguage: config.targetLanguage,
 		},
-		"🚀 Starting subtitle search and translation pipeline",
+		"🚀 Starting subtitles search and translation pipeline",
 	);
 
 	// Initialize clients
@@ -283,7 +283,7 @@ async function processSubtitlesFromSearch(
 	// Use the first result (best match)
 	const bestMatch = results[0];
 	if (!bestMatch) {
-		throw new Error("No subtitle found");
+		throw new Error("No subtitles found");
 	}
 
 	const attributes = bestMatch.attributes;
@@ -295,19 +295,22 @@ async function processSubtitlesFromSearch(
 			downloads: attributes?.download_count,
 			language: attributes?.language,
 		},
-		"📺 Selected subtitle",
+		"📺 Selected subtitles",
 	);
 
-	// Download subtitle
-	const downloadedPath = await downloadSubtitle(opensubtitlesClient, bestMatch);
+	// Download subtitles
+	const downloadedPath = await downloadSubtitles(
+		opensubtitlesClient,
+		bestMatch,
+	);
 
-	// Create output path for translated subtitle
+	// Create output path for translated subtitles
 	const translatedPath =
 		outputPath ||
 		generateDefaultOutputPath(downloadedPath, config.targetLanguage);
 
-	// Translate subtitle
-	await translateSubtitleFile(
+	// Translate subtitles
+	await translateSubtitlesFile(
 		geminiModel,
 		downloadedPath,
 		translatedPath,
@@ -346,12 +349,12 @@ async function processSubtitlesFromFile(
 	// Initialize Gemini model
 	const geminiModel = createGeminiModel(config.geminiApiKey);
 
-	// Create output path for translated subtitle
+	// Create output path for translated subtitles
 	const translatedPath =
 		outputPath || generateDefaultOutputPath(inputPath, config.targetLanguage);
 
-	// Translate subtitle
-	await translateSubtitleFile(
+	// Translate subtitles
+	await translateSubtitlesFile(
 		geminiModel,
 		inputPath,
 		translatedPath,
@@ -366,7 +369,7 @@ async function processSubtitlesFromFile(
 }
 
 /**
- * Generate default output path for translated subtitle
+ * Generate default output path for translated subtitles
  */
 function generateDefaultOutputPath(
 	inputPath: string,
@@ -395,8 +398,8 @@ function validateEnvironment(requiredVars: string[]): void {
  */
 function parseArguments(): CLIArgs {
 	return yargs(hideBin(process.argv))
-		.scriptName("subtitle-translate")
-		.usage("🎬 Subtitle Translator\n\nUsage: $0 [options]")
+		.scriptName("subtitles-translate")
+		.usage("🎬 Subtitles Translator\n\nUsage: $0 [options]")
 		.option("search", {
 			alias: "s",
 			type: "string",
@@ -405,13 +408,13 @@ function parseArguments(): CLIArgs {
 		.option("input", {
 			alias: "i",
 			type: "string",
-			description: "Path to local SRT subtitle file to translate",
+			description: "Path to local SRT subtitles file to translate",
 		})
 		.option("output", {
 			alias: "o",
 			type: "string",
 			description:
-				"Output path for translated subtitle file (optional, auto-generated if not provided)",
+				"Output path for translated subtitles file (optional, auto-generated if not provided)",
 		})
 		.option("target-language", {
 			alias: "t",
@@ -502,7 +505,7 @@ async function main(): Promise<void> {
 				targetLanguage: args.targetLanguage,
 				sourceLanguage: args.sourceLanguage,
 			},
-			"🚀 Starting subtitle translation",
+			"🚀 Starting subtitles translation",
 		);
 
 		logger.debug(
@@ -548,8 +551,8 @@ async function main(): Promise<void> {
 		}
 
 		logger.info("\n🎉 Translation completed successfully!");
-		logger.info(`📄 Original subtitle: ${result.original}`);
-		logger.info(`🌐 Translated subtitle: ${result.translated}`);
+		logger.info(`📄 Original subtitles: ${result.original}`);
+		logger.info(`🌐 Translated subtitles: ${result.translated}`);
 	} catch (error) {
 		logger.error(
 			{
