@@ -1,3 +1,5 @@
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
 import type { GoogleGenAI } from "@google/genai";
 import type pino from "pino";
 
@@ -108,6 +110,156 @@ export function reconstructSRT(
 	}
 
 	return reconstructedSegments.join("\n").trim();
+}
+
+async function saveDebugData(
+	originalSegments: SRTSegment[],
+	translatedEntries: TranscriptEntry[],
+	transcriptEntries: TranscriptEntry[],
+	logger: pino.Logger,
+): Promise<void> {
+	try {
+		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+		const debugDir = "logs";
+
+		const analysis = analyzeTranslationFailure(
+			originalSegments,
+			translatedEntries,
+		);
+
+		const debugData = {
+			timestamp: new Date().toISOString(),
+			originalSegments,
+			translatedEntries,
+			transcriptEntries,
+			analysis: {
+				originalCount: originalSegments.length,
+				translatedCount: translatedEntries.length,
+				originalNumbers: originalSegments
+					.map((s) => s.sequence)
+					.sort((a, b) => a - b),
+				translatedNumbers: translatedEntries
+					.map((e) => e.number)
+					.sort((a, b) => a - b),
+				...analysis,
+			},
+		};
+
+		// Create debug directory if it doesn't exist
+		await writeFile(
+			path.join(debugDir, `translation-failure-${timestamp}.json`),
+			JSON.stringify(debugData, null, 2),
+		).catch(async (err) => {
+			// If directory doesn't exist, try to create it first
+			if (err.code === "ENOENT") {
+				const { mkdir } = await import("node:fs/promises");
+				await mkdir(debugDir, { recursive: true });
+				await writeFile(
+					path.join(debugDir, `translation-failure-${timestamp}.json`),
+					JSON.stringify(debugData, null, 2),
+				);
+			} else {
+				throw err;
+			}
+		});
+
+		logger.info(
+			{ debugFile: `${debugDir}/translation-failure-${timestamp}.json` },
+			"Debug data saved for translation failure analysis",
+		);
+	} catch (error) {
+		logger.warn(
+			{ error: error instanceof Error ? error.message : String(error) },
+			"Failed to save debug data",
+		);
+	}
+}
+
+function analyzeTranslationFailure(
+	originalSegments: SRTSegment[],
+	translatedEntries: TranscriptEntry[],
+): {
+	missingNumbers: number[];
+	extraNumbers: number[];
+	sequenceGaps: { start: number; end: number }[];
+	insights: string[];
+} {
+	const originalNumbers = new Set(originalSegments.map((s) => s.sequence));
+	const translatedNumbers = new Set(translatedEntries.map((e) => e.number));
+
+	const missingNumbers = [...originalNumbers]
+		.filter((n) => !translatedNumbers.has(n))
+		.sort((a, b) => a - b);
+	const extraNumbers = [...translatedNumbers]
+		.filter((n) => !originalNumbers.has(n))
+		.sort((a, b) => a - b);
+
+	// Find gaps in missing sequences
+	const sequenceGaps: { start: number; end: number }[] = [];
+	if (missingNumbers.length > 0) {
+		let gapStart = missingNumbers[0]!;
+		let gapEnd = missingNumbers[0]!;
+
+		for (let i = 1; i < missingNumbers.length; i++) {
+			const current = missingNumbers[i]!;
+			if (current === gapEnd + 1) {
+				gapEnd = current;
+			} else {
+				sequenceGaps.push({ start: gapStart, end: gapEnd });
+				gapStart = current;
+				gapEnd = current;
+			}
+		}
+		sequenceGaps.push({ start: gapStart, end: gapEnd });
+	}
+
+	// Generate insights
+	const insights: string[] = [];
+
+	if (missingNumbers.length > 0) {
+		insights.push(`${missingNumbers.length} segments missing from translation`);
+
+		if (
+			sequenceGaps.length === 1 &&
+			sequenceGaps[0]?.start === sequenceGaps[0]?.end
+		) {
+			insights.push(
+				`Only missing segment ${missingNumbers[0]} - likely a single segment issue`,
+			);
+		} else if (sequenceGaps.length === 1) {
+			const gap = sequenceGaps[0]!;
+			insights.push(
+				`Missing consecutive segments ${gap.start}-${gap.end} - likely a chunk processing issue`,
+			);
+		} else {
+			insights.push(
+				`Missing segments in ${sequenceGaps.length} separate ranges - likely multiple processing issues`,
+			);
+		}
+	}
+
+	if (extraNumbers.length > 0) {
+		insights.push(
+			`${extraNumbers.length} extra segments in translation - LLM may have generated additional content`,
+		);
+	}
+
+	const maxOriginal = Math.max(...originalSegments.map((s) => s.sequence));
+	const maxTranslated = Math.max(...translatedEntries.map((e) => e.number));
+
+	if (maxTranslated > maxOriginal) {
+		insights.push(
+			`Translation goes beyond original range (${maxTranslated} > ${maxOriginal}) - LLM may have continued generating`,
+		);
+	}
+
+	if (missingNumbers.length === 2 && extraNumbers.length === 0) {
+		insights.push(
+			"Exactly 2 missing segments - common when LLM skips or merges segments",
+		);
+	}
+
+	return { missingNumbers, extraNumbers, sequenceGaps, insights };
 }
 
 export function validateTranslation(
@@ -333,11 +485,11 @@ export async function translateSRTContent(
 		"Parsed SRT into segments",
 	);
 
-	const transcript = createTranscript(originalSegments);
+	const transcriptEntries = createTranscript(originalSegments);
 
 	const translatedEntries = await translateTranscript(
 		model,
-		transcript,
+		transcriptEntries,
 		sourceLanguage,
 		targetLanguage,
 		logger,
@@ -356,11 +508,32 @@ export async function translateSRTContent(
 		);
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
+
+		// Save debug data for analysis
+		await saveDebugData(
+			originalSegments,
+			translatedEntries,
+			transcriptEntries,
+			logger,
+		);
+
+		// Get detailed analysis for logging
+		const analysis = analyzeTranslationFailure(
+			originalSegments,
+			translatedEntries,
+		);
+
 		logger.error(
 			{
 				error: errorMessage,
 				originalSegments: originalSegments.length,
 				translatedSegments: translatedEntries.length,
+				missingSegments: analysis.missingNumbers.length,
+				extraSegments: analysis.extraNumbers.length,
+				missingNumbers: analysis.missingNumbers.slice(0, 10), // Show first 10 missing
+				extraNumbers: analysis.extraNumbers.slice(0, 10), // Show first 10 extra
+				sequenceGaps: analysis.sequenceGaps,
+				insights: analysis.insights,
 				sampleOriginal: originalSegments.slice(0, 3).map((s) => ({
 					sequence: s.sequence,
 					text: s.text.substring(0, 50) + (s.text.length > 50 ? "..." : ""),
@@ -369,6 +542,7 @@ export async function translateSRTContent(
 					number: e.number,
 					text: e.text.substring(0, 50) + (e.text.length > 50 ? "..." : ""),
 				})),
+				debugDataSaved: true,
 			},
 			"Translation validation failed - this usually indicates the LLM didn't follow the expected format",
 		);

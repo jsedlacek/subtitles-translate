@@ -1,5 +1,6 @@
 node_modules/
 downloads/
+logs/
 
 .DS_Store
 .env
