@@ -116,6 +116,8 @@ async function saveDebugData(
 	originalSegments: SRTSegment[],
 	translatedEntries: TranscriptEntry[],
 	transcriptEntries: TranscriptEntry[],
+	rawLLMInput: string,
+	rawLLMOutput: string,
 	logger: pino.Logger,
 ): Promise<void> {
 	try {
@@ -132,6 +134,8 @@ async function saveDebugData(
 			originalSegments,
 			translatedEntries,
 			transcriptEntries,
+			rawLLMInput,
+			rawLLMOutput,
 			analysis: {
 				originalCount: originalSegments.length,
 				translatedCount: translatedEntries.length,
@@ -313,7 +317,11 @@ export async function translateTranscript(
 		total: number;
 		percentage: number;
 	}) => void,
-): Promise<TranscriptEntry[]> {
+): Promise<{
+	translatedEntries: TranscriptEntry[];
+	rawInput: string;
+	rawOutput: string;
+}> {
 	const totalSegments = transcript.length;
 
 	logger.debug(
@@ -336,10 +344,12 @@ CRITICAL FORMAT REQUIREMENTS:
 - Translate ONLY the text after the colon (:), NEVER change the numbers
 - You MUST include ALL ${transcript.length} entries in your response
 - Maintain the exact same line structure and numbering sequence
+- Translate descriptions in square brackets (e.g., [music playing]) to their equivalent in the target language.
 - Do NOT add any explanations, comments, or extra text before or after
 
 TRANSLATION GUIDELINES:
 - Make translations natural and appropriate for subtitles
+- For text in square brackets (like [music playing] or [gunshot]), translate the description of the sound.
 - Preserve HTML tags like <i>, <b>, {\\an8} if present
 - Keep line breaks within subtitle text exactly as they appear
 - Ensure cultural context is appropriate for the target language
@@ -451,7 +461,11 @@ REMEMBER: Respond with EXACTLY ${transcript.length} lines in the format "number:
 		);
 	}
 
-	return translatedEntries;
+	return {
+		translatedEntries,
+		rawInput: prompt,
+		rawOutput: finalContent,
+	};
 }
 
 export async function translateSRTContent(
@@ -487,7 +501,7 @@ export async function translateSRTContent(
 
 	const transcriptEntries = createTranscript(originalSegments);
 
-	const translatedEntries = await translateTranscript(
+	const translationResult = await translateTranscript(
 		model,
 		transcriptEntries,
 		sourceLanguage,
@@ -495,6 +509,8 @@ export async function translateSRTContent(
 		logger,
 		onProgress,
 	);
+
+	const { translatedEntries, rawInput, rawOutput } = translationResult;
 
 	try {
 		validateTranslation(originalSegments, translatedEntries);
@@ -514,6 +530,8 @@ export async function translateSRTContent(
 			originalSegments,
 			translatedEntries,
 			transcriptEntries,
+			rawInput,
+			rawOutput,
 			logger,
 		);
 
@@ -543,6 +561,7 @@ export async function translateSRTContent(
 					text: e.text.substring(0, 50) + (e.text.length > 50 ? "..." : ""),
 				})),
 				debugDataSaved: true,
+				rawLLMDataIncluded: true,
 			},
 			"Translation validation failed - this usually indicates the LLM didn't follow the expected format",
 		);
