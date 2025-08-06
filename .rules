@@ -1,0 +1,76 @@
+# Engineering Rules for TypeScript/Node.js Projects
+
+## 1. ANALYSIS FIRST - NEVER RUSH INTO CHANGES
+- [ ] Read package.json to understand the project setup (scripts, dependencies, type: "module")
+- [ ] Check tsconfig.json to understand TypeScript configuration
+- [ ] Identify if project uses experimental features (--experimental-strip-types, etc.)
+- [ ] Run existing scripts (npm test, npm run type-check) to understand current state
+- [ ] Check for existing test files and understand testing framework in use
+
+## 2. IMPORT/EXPORT RULES
+- [ ] For projects using "type": "module" in package.json:
+  - Runtime imports MUST use .js extensions (or .ts with experimental-strip-types)
+  - TypeScript type checking imports depend on allowImportingTsExtensions setting
+- [ ] NEVER guess import extensions - check what actually works in the current setup
+- [ ] Test both runtime execution AND type checking after changing imports
+
+## 3. TYPESCRIPT CONFIGURATION
+- [ ] Understand the difference between runtime and type checking requirements
+- [ ] If using experimental Node.js features, configure tsconfig.json accordingly
+- [ ] Set allowImportingTsExtensions: true if using .ts imports
+- [ ] Always test: npm run type-check AND actual runtime execution
+
+## 4. TESTING BEST PRACTICES
+- [ ] Use optional chaining (?.) or proper null checks when accessing array elements
+- [ ] Never assume array[0] exists - always check array[0]?.property
+- [ ] Write defensive assertions that won't fail on undefined
+- [ ] Test edge cases: empty arrays, undefined values, malformed input
+
+## 5. REFACTORING WORKFLOW
+1. [ ] Analyze existing code structure completely
+2. [ ] Identify what needs to be extracted/separated
+3. [ ] Create new files with proper exports
+4. [ ] Update imports systematically
+5. [ ] Test after each major change
+6. [ ] Fix TypeScript errors before moving to next step
+
+## 6. ERROR HANDLING STRATEGY
+- [ ] Fix the ROOT CAUSE, not symptoms
+- [ ] If getting import errors, understand the module system being used
+- [ ] If getting TypeScript errors, fix configuration before changing code
+- [ ] Don't apply quick fixes without understanding why they're needed
+
+## 7. FILE ORGANIZATION
+- [ ] Separate concerns clearly: lib files for core logic, index for application
+- [ ] Export all testable functions from library files
+- [ ] Keep main application entry point clean and focused
+- [ ] Use consistent naming: lib.ts + lib.test.ts patterns
+
+## 8. TESTING REQUIREMENTS
+- [ ] Test files should import from the library they're testing
+- [ ] Use Node.js native testing if no other framework is configured
+- [ ] Cover happy path, edge cases, and error conditions
+- [ ] Ensure tests work with the actual module system (ESM/CommonJS)
+
+## 9. VALIDATION CHECKLIST BEFORE COMPLETION
+- [ ] npm run type-check passes
+- [ ] npm test passes
+- [ ] All imports resolve correctly
+- [ ] No undefined/null access without proper checks
+- [ ] Original functionality preserved
+- [ ] New functionality properly tested
+
+## 10. COMMUNICATION RULES
+- [ ] Explain what went wrong when mistakes are made
+- [ ] Acknowledge configuration misunderstandings
+- [ ] Show the systematic approach being taken to fix issues
+- [ ] Don't hide behind "TypeScript experimental feature" excuses
+
+## EMERGENCY DEBUGGING STEPS
+When things break:
+1. [ ] Stop making more changes
+2. [ ] Identify the exact error message
+3. [ ] Check if it's a runtime vs type-checking issue
+4. [ ] Verify the module system configuration
+5. [ ] Test one change at a time
+6. [ ] Revert if necessary and take a different approach
