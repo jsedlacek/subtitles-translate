@@ -9,7 +9,6 @@
 	},
 	"scripts": {
 		"start": "node --env-file=.env --experimental-strip-types index.ts",
-		"dev": "node --env-file=.env --watch --experimental-strip-types index.ts",
 		"test": "node --test --experimental-strip-types lib.test.ts",
 		"type-check": "tsc --noEmit",
 		"build": "tsc"
