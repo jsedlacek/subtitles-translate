@@ -1,9 +1,11 @@
 import assert from "node:assert";
 import { describe, test } from "node:test";
+import type { ChunkInfo } from "./chunking.ts";
 import type { SRTSegment } from "./srt.ts";
 import type { TranscriptEntry } from "./transcript.ts";
 import {
 	analyzeTranslationFailure,
+	validateChunk,
 	validateTranslation,
 } from "./validation.ts";
 
@@ -40,6 +42,132 @@ describe("Validation Module", () => {
 			text: "See you later!",
 		},
 	];
+
+	describe("validateChunk", () => {
+		test("should pass for valid chunk translation", () => {
+			const chunk: ChunkInfo = {
+				segments: [sampleSegments[0]!, sampleSegments[1]!],
+				contextSegments: [],
+				translateSegments: [sampleSegments[0]!, sampleSegments[1]!],
+				chunkIndex: 0,
+				totalChunks: 1,
+			};
+
+			const validTranslation: TranscriptEntry[] = [
+				{ number: 1, text: "Translation 1" },
+				{ number: 2, text: "Translation 2" },
+			];
+
+			assert.doesNotThrow(() => validateChunk(chunk, validTranslation));
+		});
+
+		test("should throw for missing segments in chunk", () => {
+			const chunk: ChunkInfo = {
+				segments: [sampleSegments[0]!, sampleSegments[1]!, sampleSegments[2]!],
+				contextSegments: [],
+				translateSegments: [
+					sampleSegments[0]!,
+					sampleSegments[1]!,
+					sampleSegments[2]!,
+				],
+				chunkIndex: 0,
+				totalChunks: 2,
+			};
+
+			const incompleteTranslation: TranscriptEntry[] = [
+				{ number: 1, text: "Translation 1" },
+				// Missing segment 2 and 3
+			];
+
+			assert.throws(
+				() => validateChunk(chunk, incompleteTranslation),
+				/Chunk 1\/2 validation failed: Expected 3 segments but got 1/,
+			);
+		});
+
+		test("should throw for extra segments in chunk", () => {
+			const chunk: ChunkInfo = {
+				segments: [sampleSegments[0]!, sampleSegments[1]!],
+				contextSegments: [],
+				translateSegments: [sampleSegments[0]!, sampleSegments[1]!],
+				chunkIndex: 1,
+				totalChunks: 3,
+			};
+
+			const extraTranslation: TranscriptEntry[] = [
+				{ number: 1, text: "Translation 1" },
+				{ number: 2, text: "Translation 2" },
+				{ number: 99, text: "Extra translation" },
+			];
+
+			assert.throws(
+				() => validateChunk(chunk, extraTranslation),
+				/Chunk 2\/3 validation failed: Expected 2 segments but got 3/,
+			);
+		});
+
+		test("should throw for wrong segment numbers in chunk", () => {
+			const chunk: ChunkInfo = {
+				segments: [sampleSegments[2]!, sampleSegments[3]!],
+				contextSegments: [sampleSegments[1]!],
+				translateSegments: [sampleSegments[2]!, sampleSegments[3]!],
+				chunkIndex: 1,
+				totalChunks: 2,
+			};
+
+			const wrongNumbersTranslation: TranscriptEntry[] = [
+				{ number: 10, text: "Translation 1" },
+				{ number: 20, text: "Translation 2" },
+			];
+
+			assert.throws(
+				() => validateChunk(chunk, wrongNumbersTranslation),
+				/Chunk 2\/2 validation failed: Missing translations for segments: 3, 4/,
+			);
+		});
+
+		test("should handle chunk with context segments correctly", () => {
+			const chunk: ChunkInfo = {
+				segments: [sampleSegments[0]!, sampleSegments[1]!, sampleSegments[2]!],
+				contextSegments: [sampleSegments[0]!],
+				translateSegments: [sampleSegments[1]!, sampleSegments[2]!],
+				chunkIndex: 1,
+				totalChunks: 2,
+			};
+
+			const validTranslation: TranscriptEntry[] = [
+				{ number: 2, text: "Translation 2" },
+				{ number: 3, text: "Translation 3" },
+			];
+
+			assert.doesNotThrow(() => validateChunk(chunk, validTranslation));
+		});
+
+		test("should provide detailed error for mixed missing and extra in chunk", () => {
+			const chunk: ChunkInfo = {
+				segments: [sampleSegments[0]!, sampleSegments[1]!, sampleSegments[2]!],
+				contextSegments: [],
+				translateSegments: [
+					sampleSegments[0]!,
+					sampleSegments[1]!,
+					sampleSegments[2]!,
+				],
+				chunkIndex: 0,
+				totalChunks: 1,
+			};
+
+			const mixedTranslation: TranscriptEntry[] = [
+				{ number: 1, text: "Translation 1" },
+				{ number: 99, text: "Extra translation" },
+				{ number: 100, text: "Another extra" },
+			];
+
+			assert.throws(
+				() => validateChunk(chunk, mixedTranslation),
+				/Chunk 1\/1 validation failed: Missing translations for segments: 2, 3/,
+			);
+		});
+	});
 
 	describe("validateTranslation", () => {
 		test("should pass for valid translation", () => {
@@ -361,6 +489,77 @@ describe("Validation Module", () => {
 			assert.deepStrictEqual(analysis.missingNumbers, [10]);
 			assert.deepStrictEqual(analysis.extraNumbers, []);
 			assert.strictEqual(analysis.sequenceGaps.length, 1);
+		});
+	});
+
+	describe("Integration - Immediate chunk validation", () => {
+		test("should detect chunk validation failure immediately", () => {
+			// Simulate a scenario where translateChunk would call validateChunk
+			// and validateChunk should throw an error immediately
+			const chunk: ChunkInfo = {
+				segments: [sampleSegments[0]!, sampleSegments[1]!, sampleSegments[2]!],
+				contextSegments: [],
+				translateSegments: [
+					sampleSegments[0]!,
+					sampleSegments[1]!,
+					sampleSegments[2]!,
+				],
+				chunkIndex: 2,
+				totalChunks: 5,
+			};
+
+			// Simulate LLM response that's missing one segment
+			const faultyLLMResponse: TranscriptEntry[] = [
+				{ number: 1, text: "Translation 1" },
+				{ number: 2, text: "Translation 2" },
+				// Missing segment 3 - this should trigger immediate validation failure
+			];
+
+			// This should throw immediately with chunk-specific information
+			assert.throws(
+				() => validateChunk(chunk, faultyLLMResponse),
+				(error: Error) => {
+					assert.match(error.message, /Chunk 3\/5 validation failed/);
+					assert.match(error.message, /Expected 3 segments but got 2/);
+					assert.match(error.message, /Expected segments: \[1, 2, 3\]/);
+					assert.match(error.message, /Got segments: \[1, 2\]/);
+					return true;
+				},
+			);
+		});
+
+		test("should detect wrong segment numbers immediately", () => {
+			const chunk: ChunkInfo = {
+				segments: [sampleSegments[2]!, sampleSegments[3]!, sampleSegments[4]!],
+				contextSegments: [sampleSegments[1]!],
+				translateSegments: [
+					sampleSegments[2]!,
+					sampleSegments[3]!,
+					sampleSegments[4]!,
+				],
+				chunkIndex: 1,
+				totalChunks: 2,
+			};
+
+			// Simulate LLM response with wrong segment numbers
+			const faultyLLMResponse: TranscriptEntry[] = [
+				{ number: 10, text: "Wrong segment 10" },
+				{ number: 11, text: "Wrong segment 11" },
+				{ number: 12, text: "Wrong segment 12" },
+			];
+
+			assert.throws(
+				() => validateChunk(chunk, faultyLLMResponse),
+				(error: Error) => {
+					assert.match(
+						error.message,
+						/Chunk 2\/2 validation failed: Missing translations for segments: 3, 4, 5/,
+					);
+					assert.match(error.message, /Expected segments: \[3, 4, 5\]/);
+					assert.match(error.message, /Got segments: \[10, 11, 12\]/);
+					return true;
+				},
+			);
 		});
 	});
 });

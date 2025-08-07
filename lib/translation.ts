@@ -6,6 +6,7 @@ import { getLLMLogger } from "./llm-logger.ts";
 import type { SRTSegment } from "./srt.ts";
 import { parseSRTLikeFormat } from "./srt.ts";
 import type { TranscriptEntry } from "./transcript.ts";
+import { validateChunk } from "./validation.ts";
 
 async function translateChunk(
 	model: GoogleGenAI,
@@ -138,17 +139,41 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 	const finalContent = translatedContent.trim();
 	const translatedEntries = parseSRTLikeFormat(finalContent);
 
-	logger.debug(
-		{
-			chunkIndex: chunk.chunkIndex,
-			contextSegments: chunk.contextSegments.length,
-			translateSegments: chunk.translateSegments.length,
-			translatedEntries: translatedEntries.length,
-			expectedSegments: translateSegmentNumbers,
-			actualSegments: translatedEntries.map((e) => e.number),
-		},
-		"Translated chunk",
-	);
+	// Validate chunk immediately after translation
+	try {
+		validateChunk(chunk, translatedEntries);
+		logger.debug(
+			{
+				chunkIndex: chunk.chunkIndex,
+				contextSegments: chunk.contextSegments.length,
+				translateSegments: chunk.translateSegments.length,
+				translatedEntries: translatedEntries.length,
+				expectedSegments: translateSegmentNumbers,
+				actualSegments: translatedEntries.map((e) => e.number),
+				validationStatus: "passed",
+			},
+			"Translated chunk successfully validated",
+		);
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+
+		logger.error(
+			{
+				chunkIndex: chunk.chunkIndex,
+				contextSegments: chunk.contextSegments.length,
+				translateSegments: chunk.translateSegments.length,
+				translatedEntries: translatedEntries.length,
+				expectedSegments: translateSegmentNumbers,
+				actualSegments: translatedEntries.map((e) => e.number),
+				validationError: errorMessage,
+				rawPrompt: `${prompt.substring(0, 500)}...`,
+				rawResponse: `${finalContent.substring(0, 500)}...`,
+			},
+			"Chunk validation failed immediately after translation",
+		);
+
+		throw new Error(`Immediate chunk validation failed: ${errorMessage}`);
+	}
 
 	return {
 		entries: translatedEntries,
@@ -181,7 +206,7 @@ export async function translateTranscript(
 			sourceLanguage,
 			targetLanguage,
 		},
-		"Translating transcript with Gemini using intelligent chunking",
+		"Translating transcript with Gemini using concurrent intelligent chunking",
 	);
 
 	// Convert transcript entries back to segments for chunking analysis
@@ -201,23 +226,36 @@ export async function translateTranscript(
 			numberOfChunks: chunks.length,
 			chunkSizes: chunks.map((c) => c.translateSegments.length),
 		},
-		"Created intelligent chunks for translation",
+		"Created intelligent chunks for concurrent translation",
 	);
 
-	const allTranslatedEntries: TranscriptEntry[] = [];
-	const allRawInputs: string[] = [];
-	const allRawOutputs: string[] = [];
+	// Track progress state
+	let completedSegments = 0;
+	const progressLock = { value: false }; // Simple mutex-like object
 
-	for (let i = 0; i < chunks.length; i++) {
-		const chunk = chunks[i]!;
+	const updateProgress = (segmentCount: number) => {
+		if (!onProgress || progressLock.value) return;
 
+		progressLock.value = true;
+		completedSegments += segmentCount;
+		const percentage = Math.round((completedSegments / totalSegments) * 100);
+		onProgress({
+			completed: completedSegments,
+			total: totalSegments,
+			percentage,
+		});
+		progressLock.value = false;
+	};
+
+	// Create promises for all chunks to process concurrently
+	const chunkPromises = chunks.map(async (chunk, index) => {
 		logger.debug(
 			{
-				chunkIndex: i,
+				chunkIndex: index,
 				contextSegments: chunk.contextSegments.map((s) => s.sequence),
 				translateSegments: chunk.translateSegments.map((s) => s.sequence),
 			},
-			"Processing chunk",
+			"Starting concurrent chunk processing",
 		);
 
 		const chunkResult = await translateChunk(
@@ -228,32 +266,43 @@ export async function translateTranscript(
 			logger,
 		);
 
-		allTranslatedEntries.push(...chunkResult.entries);
-		allRawInputs.push(chunkResult.rawInput);
-		allRawOutputs.push(chunkResult.rawOutput);
-
-		// Update progress
-		if (onProgress) {
-			const completed = allTranslatedEntries.length;
-			const percentage = Math.round((completed / totalSegments) * 100);
-			onProgress({
-				completed,
-				total: totalSegments,
-				percentage,
-			});
-		}
+		// Update progress after this chunk completes
+		updateProgress(chunkResult.entries.length);
 
 		logger.debug(
 			{
-				chunkIndex: i,
+				chunkIndex: index,
 				chunkTranslated: chunkResult.entries.length,
-				totalTranslated: allTranslatedEntries.length,
-				remaining: totalSegments - allTranslatedEntries.length,
+				totalCompleted: completedSegments,
 			},
-			"Chunk translation completed",
+			"Concurrent chunk translation completed",
 		);
+
+		return {
+			index,
+			...chunkResult,
+		};
+	});
+
+	// Wait for all chunks to complete
+	logger.debug("Waiting for all concurrent chunk translations to complete");
+	const chunkResults = await Promise.all(chunkPromises);
+
+	// Sort results by original chunk index to maintain order
+	chunkResults.sort((a, b) => a.index - b.index);
+
+	// Combine all results in order
+	const allTranslatedEntries: TranscriptEntry[] = [];
+	const allRawInputs: string[] = [];
+	const allRawOutputs: string[] = [];
+
+	for (const result of chunkResults) {
+		allTranslatedEntries.push(...result.entries);
+		allRawInputs.push(result.rawInput);
+		allRawOutputs.push(result.rawOutput);
 	}
 
+	// Ensure final progress update
 	if (onProgress) {
 		onProgress({
 			completed: totalSegments,
@@ -266,8 +315,9 @@ export async function translateTranscript(
 		{
 			originalSegments: totalSegments,
 			translatedSegments: allTranslatedEntries.length,
+			concurrentChunks: chunks.length,
 		},
-		"All chunks translated, assembling final result",
+		"All concurrent chunks translated, assembling final result",
 	);
 
 	// Sort translated entries by segment number to ensure correct order

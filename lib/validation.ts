@@ -1,5 +1,47 @@
+import type { ChunkInfo } from "./chunking.ts";
 import type { SRTSegment } from "./srt.ts";
 import type { TranscriptEntry } from "./transcript.ts";
+
+export function validateChunk(
+	chunk: ChunkInfo,
+	translatedEntries: TranscriptEntry[],
+): void {
+	const expectedCount = chunk.translateSegments.length;
+	const actualCount = translatedEntries.length;
+
+	if (expectedCount !== actualCount) {
+		const expectedNumbers = chunk.translateSegments.map((s) => s.sequence);
+		const actualNumbers = translatedEntries.map((e) => e.number);
+
+		throw new Error(
+			`Chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} validation failed: Expected ${expectedCount} segments but got ${actualCount}. Expected segments: [${expectedNumbers.join(", ")}], Got segments: [${actualNumbers.join(", ")}]. This indicates the LLM didn't follow the expected format for this chunk.`,
+		);
+	}
+
+	const expectedNumbers = new Set(
+		chunk.translateSegments.map((s) => s.sequence),
+	);
+	const actualNumbers = new Set(translatedEntries.map((e) => e.number));
+
+	const missingNumbers = [...expectedNumbers].filter(
+		(n) => !actualNumbers.has(n),
+	);
+	const extraNumbers = [...actualNumbers].filter(
+		(n) => !expectedNumbers.has(n),
+	);
+
+	if (missingNumbers.length > 0) {
+		throw new Error(
+			`Chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} validation failed: Missing translations for segments: ${missingNumbers.join(", ")}. Expected segments: [${[...expectedNumbers].sort((a, b) => a - b).join(", ")}], Got segments: [${[...actualNumbers].sort((a, b) => a - b).join(", ")}]. This indicates the LLM didn't provide translations for all required segments in this chunk.`,
+		);
+	}
+
+	if (extraNumbers.length > 0) {
+		throw new Error(
+			`Chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} validation failed: Unexpected segments in translation: ${extraNumbers.join(", ")}. Expected segments: [${[...expectedNumbers].sort((a, b) => a - b).join(", ")}], Got segments: [${[...actualNumbers].sort((a, b) => a - b).join(", ")}]. This indicates the LLM provided extra segments not requested for this chunk.`,
+		);
+	}
+}
 
 export function validateTranslation(
 	originalSegments: SRTSegment[],
