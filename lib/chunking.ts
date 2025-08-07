@@ -98,7 +98,9 @@ export function createIntelligentChunks(
 	}
 
 	// Set total chunks count
-  chunks.forEach((chunk) => { chunk.totalChunks = chunks.length });
+	for (const chunk of chunks) {
+		chunk.totalChunks = chunks.length;
+	}
 
 	return chunks;
 }
