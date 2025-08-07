@@ -1,6 +1,7 @@
 import type { GoogleGenAI } from "@google/genai";
 import type pino from "pino";
 import { saveDebugData } from "./debug.ts";
+import type { LLMLogger } from "./llm-logger.ts";
 import { parseSRTContent, reconstructSRT } from "./srt.ts";
 import { createTranscript } from "./transcript.ts";
 import { translateTranscript } from "./translation.ts";
@@ -12,6 +13,7 @@ export async function translateSRTContent(
 	sourceLanguage: string,
 	targetLanguage: string,
 	logger: pino.Logger,
+	llmLogger: LLMLogger,
 	onProgress?: (progress: { completed: number; total: number; percentage: number }) => void
 ): Promise<string> {
 	logger.debug(
@@ -41,6 +43,7 @@ export async function translateSRTContent(
 		sourceLanguage,
 		targetLanguage,
 		logger,
+		llmLogger,
 		onProgress
 	);
 
