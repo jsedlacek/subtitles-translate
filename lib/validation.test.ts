@@ -561,5 +561,103 @@ describe("Validation Module", () => {
 				},
 			);
 		});
+
+		describe("Retry mechanism integration", () => {
+			test("should validate retry error detection", () => {
+				// Test that validation errors are properly identified for retry
+				const chunk: ChunkInfo = {
+					segments: sampleSegments.slice(0, 2),
+					contextSegments: [],
+					translateSegments: sampleSegments.slice(0, 2),
+					chunkIndex: 0,
+					totalChunks: 1,
+				};
+
+				const invalidTranslation: TranscriptEntry[] = [
+					{ number: 1, text: "Translation 1" },
+					// Missing segment 2
+				];
+
+				// Verify this throws a validation error that would trigger retry
+				assert.throws(
+					() => validateChunk(chunk, invalidTranslation),
+					(error: Error) => {
+						const message = error.message;
+						// These patterns should trigger retries in translateChunk
+						assert(
+							message.includes("validation failed") ||
+								message.includes("Expected") ||
+								message.includes("Got segments"),
+						);
+						return true;
+					},
+				);
+			});
+
+			test("should identify different types of validation errors for retry", () => {
+				const chunk: ChunkInfo = {
+					segments: sampleSegments.slice(0, 3),
+					contextSegments: [],
+					translateSegments: sampleSegments.slice(0, 3),
+					chunkIndex: 2,
+					totalChunks: 5,
+				};
+
+				// Test wrong segment count
+				assert.throws(
+					() => validateChunk(chunk, [{ number: 1, text: "Only one" }]),
+					/validation failed.*Expected.*Got segments/,
+				);
+
+				// Test wrong segment numbers
+				assert.throws(
+					() =>
+						validateChunk(chunk, [
+							{ number: 10, text: "Wrong 1" },
+							{ number: 11, text: "Wrong 2" },
+							{ number: 12, text: "Wrong 3" },
+						]),
+					/validation failed.*Expected.*Got segments/,
+				);
+
+				// Test extra segments
+				assert.throws(
+					() =>
+						validateChunk(chunk, [
+							{ number: 1, text: "Translation 1" },
+							{ number: 2, text: "Translation 2" },
+							{ number: 3, text: "Translation 3" },
+							{ number: 4, text: "Extra translation" },
+						]),
+					/validation failed.*Expected.*Got segments/,
+				);
+			});
+
+			test("should provide clear error messages for retry scenarios", () => {
+				const chunk: ChunkInfo = {
+					segments: sampleSegments.slice(0, 2),
+					contextSegments: [],
+					translateSegments: sampleSegments.slice(0, 2),
+					chunkIndex: 3,
+					totalChunks: 8,
+				};
+
+				const faultyTranslation: TranscriptEntry[] = [
+					{ number: 99, text: "Wrong segment number" },
+				];
+
+				assert.throws(
+					() => validateChunk(chunk, faultyTranslation),
+					(error: Error) => {
+						const message = error.message;
+						// Should include chunk information for debugging retries
+						assert.match(message, /Chunk 4\/8/);
+						assert.match(message, /Expected segments: \[1, 2\]/);
+						assert.match(message, /Got segments: \[99\]/);
+						return true;
+					},
+				);
+			});
+		});
 	});
 });

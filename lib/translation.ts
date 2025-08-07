@@ -19,6 +19,79 @@ async function translateChunk(
 	rawInput: string;
 	rawOutput: string;
 }> {
+	const maxRetries = 3;
+	let attempt = 0;
+
+	while (attempt < maxRetries) {
+		attempt++;
+		try {
+			return await translateChunkAttempt(
+				model,
+				chunk,
+				sourceLanguage,
+				targetLanguage,
+				logger,
+				attempt,
+			);
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+
+			// Check if this is a validation error that we should retry
+			const isValidationError =
+				errorMessage.includes("validation failed") ||
+				errorMessage.includes("Expected") ||
+				errorMessage.includes("Got segments");
+
+			if (isValidationError && attempt < maxRetries) {
+				logger.warn(
+					{
+						chunkIndex: chunk.chunkIndex,
+						attempt,
+						maxRetries,
+						error: errorMessage,
+						retryReason: "LLM validation failure",
+					},
+					`Chunk translation attempt ${attempt} failed, retrying...`,
+				);
+				// Small delay before retry to avoid overwhelming the API
+				await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+				continue;
+			}
+
+			// If it's not a validation error or we've exhausted retries, throw the error
+			logger.error(
+				{
+					chunkIndex: chunk.chunkIndex,
+					attempt,
+					maxRetries,
+					error: errorMessage,
+					finalAttempt: true,
+				},
+				`Chunk translation failed after ${attempt} attempts`,
+			);
+			throw error;
+		}
+	}
+
+	// This should never be reached, but TypeScript requires it
+	throw new Error(
+		`Unexpected error: exceeded ${maxRetries} retries without resolution`,
+	);
+}
+
+async function translateChunkAttempt(
+	model: GoogleGenAI,
+	chunk: ChunkInfo,
+	sourceLanguage: string,
+	targetLanguage: string,
+	logger: pino.Logger,
+	attempt: number,
+): Promise<{
+	entries: TranscriptEntry[];
+	rawInput: string;
+	rawOutput: string;
+}> {
 	const contextText =
 		chunk.contextSegments.length > 0
 			? chunk.contextSegments
@@ -37,7 +110,7 @@ async function translateChunk(
 	let prompt = `You are a professional subtitles translator. Translate the following subtitles from ${sourceLanguage} to ${targetLanguage}.
 
 CONTEXT AND TRANSLATION INSTRUCTIONS:
-- This is chunk ${chunk.chunkIndex + 1} of ${chunk.totalChunks}
+- This is chunk ${chunk.chunkIndex + 1} of ${chunk.totalChunks}${attempt > 1 ? ` (Attempt ${attempt})` : ""}
 - You will see some segments for CONTEXT ONLY, then segments to TRANSLATE
 - ONLY translate the segments listed in the "TRANSLATE THESE SEGMENTS" section
 - Context segments help you understand the flow but should NOT be included in your output
@@ -145,6 +218,7 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 		logger.debug(
 			{
 				chunkIndex: chunk.chunkIndex,
+				attempt,
 				contextSegments: chunk.contextSegments.length,
 				translateSegments: chunk.translateSegments.length,
 				translatedEntries: translatedEntries.length,
@@ -152,14 +226,15 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 				actualSegments: translatedEntries.map((e) => e.number),
 				validationStatus: "passed",
 			},
-			"Translated chunk successfully validated",
+			`Translated chunk successfully validated on attempt ${attempt}`,
 		);
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 
-		logger.error(
+		logger.warn(
 			{
 				chunkIndex: chunk.chunkIndex,
+				attempt,
 				contextSegments: chunk.contextSegments.length,
 				translateSegments: chunk.translateSegments.length,
 				translatedEntries: translatedEntries.length,
@@ -169,10 +244,10 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 				rawPrompt: `${prompt.substring(0, 500)}...`,
 				rawResponse: `${finalContent.substring(0, 500)}...`,
 			},
-			"Chunk validation failed immediately after translation",
+			`Chunk validation failed on attempt ${attempt}`,
 		);
 
-		throw new Error(`Immediate chunk validation failed: ${errorMessage}`);
+		throw new Error(`Chunk validation failed: ${errorMessage}`);
 	}
 
 	return {

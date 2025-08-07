@@ -1,6 +1,7 @@
 node_modules/
 downloads/
 logs/
+test-logs-reqid/
 
 .DS_Store
 .env
