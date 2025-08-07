@@ -11,16 +11,13 @@ export async function saveDebugData(
 	transcriptEntries: TranscriptEntry[],
 	rawLLMInput: string,
 	rawLLMOutput: string,
-	logger: pino.Logger,
+	logger: pino.Logger
 ): Promise<void> {
 	try {
 		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 		const debugDir = "logs";
 
-		const analysis = analyzeTranslationFailure(
-			originalSegments,
-			translatedEntries,
-		);
+		const analysis = analyzeTranslationFailure(originalSegments, translatedEntries);
 
 		const debugData = {
 			timestamp: new Date().toISOString(),
@@ -32,12 +29,8 @@ export async function saveDebugData(
 			analysis: {
 				originalCount: originalSegments.length,
 				translatedCount: translatedEntries.length,
-				originalNumbers: originalSegments
-					.map((s) => s.sequence)
-					.sort((a, b) => a - b),
-				translatedNumbers: translatedEntries
-					.map((e) => e.number)
-					.sort((a, b) => a - b),
+				originalNumbers: originalSegments.map((s) => s.sequence).sort((a, b) => a - b),
+				translatedNumbers: translatedEntries.map((e) => e.number).sort((a, b) => a - b),
 				...analysis,
 			},
 		};
@@ -45,7 +38,7 @@ export async function saveDebugData(
 		// Create debug directory if it doesn't exist
 		await writeFile(
 			path.join(debugDir, `translation-failure-${timestamp}.json`),
-			JSON.stringify(debugData, null, 2),
+			JSON.stringify(debugData, null, 2)
 		).catch(async (err) => {
 			// If directory doesn't exist, try to create it first
 			if (err.code === "ENOENT") {
@@ -53,7 +46,7 @@ export async function saveDebugData(
 				await mkdir(debugDir, { recursive: true });
 				await writeFile(
 					path.join(debugDir, `translation-failure-${timestamp}.json`),
-					JSON.stringify(debugData, null, 2),
+					JSON.stringify(debugData, null, 2)
 				);
 			} else {
 				throw err;
@@ -62,12 +55,12 @@ export async function saveDebugData(
 
 		logger.info(
 			{ debugFile: `${debugDir}/translation-failure-${timestamp}.json` },
-			"Debug data saved for translation failure analysis",
+			"Debug data saved for translation failure analysis"
 		);
 	} catch (error) {
 		logger.warn(
 			{ error: error instanceof Error ? error.message : String(error) },
-			"Failed to save debug data",
+			"Failed to save debug data"
 		);
 	}
 }

@@ -3,11 +3,7 @@ import { describe, test } from "node:test";
 import type { ChunkInfo } from "./chunking.ts";
 import type { SRTSegment } from "./srt.ts";
 import type { TranscriptEntry } from "./transcript.ts";
-import {
-	analyzeTranslationFailure,
-	validateChunk,
-	validateTranslation,
-} from "./validation.ts";
+import { analyzeTranslationFailure, validateChunk, validateTranslation } from "./validation.ts";
 
 describe("Validation Module", () => {
 	const sampleSegments: SRTSegment[] = [
@@ -65,11 +61,7 @@ describe("Validation Module", () => {
 			const chunk: ChunkInfo = {
 				segments: [sampleSegments[0]!, sampleSegments[1]!, sampleSegments[2]!],
 				contextSegments: [],
-				translateSegments: [
-					sampleSegments[0]!,
-					sampleSegments[1]!,
-					sampleSegments[2]!,
-				],
+				translateSegments: [sampleSegments[0]!, sampleSegments[1]!, sampleSegments[2]!],
 				chunkIndex: 0,
 				totalChunks: 2,
 			};
@@ -81,7 +73,7 @@ describe("Validation Module", () => {
 
 			assert.throws(
 				() => validateChunk(chunk, incompleteTranslation),
-				/Chunk 1\/2 validation failed: Expected 3 segments but got 1/,
+				/Chunk 1\/2 validation failed: Expected 3 segments but got 1/
 			);
 		});
 
@@ -102,7 +94,7 @@ describe("Validation Module", () => {
 
 			assert.throws(
 				() => validateChunk(chunk, extraTranslation),
-				/Chunk 2\/3 validation failed: Expected 2 segments but got 3/,
+				/Chunk 2\/3 validation failed: Expected 2 segments but got 3/
 			);
 		});
 
@@ -122,7 +114,7 @@ describe("Validation Module", () => {
 
 			assert.throws(
 				() => validateChunk(chunk, wrongNumbersTranslation),
-				/Chunk 2\/2 validation failed: Missing translations for segments: 3, 4/,
+				/Chunk 2\/2 validation failed: Missing translations for segments: 3, 4/
 			);
 		});
 
@@ -147,11 +139,7 @@ describe("Validation Module", () => {
 			const chunk: ChunkInfo = {
 				segments: [sampleSegments[0]!, sampleSegments[1]!, sampleSegments[2]!],
 				contextSegments: [],
-				translateSegments: [
-					sampleSegments[0]!,
-					sampleSegments[1]!,
-					sampleSegments[2]!,
-				],
+				translateSegments: [sampleSegments[0]!, sampleSegments[1]!, sampleSegments[2]!],
 				chunkIndex: 0,
 				totalChunks: 1,
 			};
@@ -164,7 +152,7 @@ describe("Validation Module", () => {
 
 			assert.throws(
 				() => validateChunk(chunk, mixedTranslation),
-				/Chunk 1\/1 validation failed: Missing translations for segments: 2, 3/,
+				/Chunk 1\/1 validation failed: Missing translations for segments: 2, 3/
 			);
 		});
 	});
@@ -179,9 +167,7 @@ describe("Validation Module", () => {
 				{ number: 5, text: "Translation 5" },
 			];
 
-			assert.doesNotThrow(() =>
-				validateTranslation(sampleSegments, validTranslation),
-			);
+			assert.doesNotThrow(() => validateTranslation(sampleSegments, validTranslation));
 		});
 
 		test("should throw for missing segments", () => {
@@ -192,7 +178,7 @@ describe("Validation Module", () => {
 
 			assert.throws(
 				() => validateTranslation(sampleSegments, incompleteTranslation),
-				/Segment count mismatch/,
+				/Segment count mismatch/
 			);
 		});
 
@@ -208,7 +194,7 @@ describe("Validation Module", () => {
 
 			assert.throws(
 				() => validateTranslation(sampleSegments, extraTranslation),
-				/Segment count mismatch/,
+				/Segment count mismatch/
 			);
 		});
 
@@ -223,7 +209,7 @@ describe("Validation Module", () => {
 
 			assert.throws(
 				() => validateTranslation(sampleSegments, wrongNumbersTranslation),
-				/Missing translations for segments: 1, 2, 3, 4, 5/,
+				/Missing translations for segments: 1, 2, 3, 4, 5/
 			);
 		});
 
@@ -237,7 +223,7 @@ describe("Validation Module", () => {
 
 			assert.throws(
 				() => validateTranslation(sampleSegments, mixedTranslation),
-				/Segment count mismatch/,
+				/Segment count mismatch/
 			);
 		});
 
@@ -266,9 +252,7 @@ describe("Validation Module", () => {
 				{ number: 10, text: "Translation 2" },
 			];
 
-			assert.doesNotThrow(() =>
-				validateTranslation(nonSequentialSegments, validTranslation),
-			);
+			assert.doesNotThrow(() => validateTranslation(nonSequentialSegments, validTranslation));
 		});
 	});
 
@@ -280,10 +264,7 @@ describe("Validation Module", () => {
 				{ number: 5, text: "Translation 5" },
 			];
 
-			const analysis = analyzeTranslationFailure(
-				sampleSegments,
-				incompleteTranslation,
-			);
+			const analysis = analyzeTranslationFailure(sampleSegments, incompleteTranslation);
 
 			assert.deepStrictEqual(analysis.missingNumbers, [2, 4]);
 			assert.deepStrictEqual(analysis.extraNumbers, []);
@@ -302,18 +283,13 @@ describe("Validation Module", () => {
 				{ number: 7, text: "Another extra" },
 			];
 
-			const analysis = analyzeTranslationFailure(
-				sampleSegments,
-				extraTranslation,
-			);
+			const analysis = analyzeTranslationFailure(sampleSegments, extraTranslation);
 
 			assert.deepStrictEqual(analysis.missingNumbers, []);
 			assert.deepStrictEqual(analysis.extraNumbers, [6, 7]);
 			assert.strictEqual(analysis.sequenceGaps.length, 0);
 			assert(
-				analysis.insights.some((insight) =>
-					insight.includes("extra segments in translation"),
-				),
+				analysis.insights.some((insight) => insight.includes("extra segments in translation"))
 			);
 		});
 
@@ -323,19 +299,14 @@ describe("Validation Module", () => {
 				{ number: 5, text: "Translation 5" },
 			];
 
-			const analysis = analyzeTranslationFailure(
-				sampleSegments,
-				missingConsecutiveTranslation,
-			);
+			const analysis = analyzeTranslationFailure(sampleSegments, missingConsecutiveTranslation);
 
 			assert.deepStrictEqual(analysis.missingNumbers, [2, 3, 4]);
 			assert.strictEqual(analysis.sequenceGaps.length, 1);
 			assert.strictEqual(analysis.sequenceGaps[0]?.start, 2);
 			assert.strictEqual(analysis.sequenceGaps[0]?.end, 4);
 			assert(
-				analysis.insights.some((insight) =>
-					insight.includes("Missing consecutive segments 2-4"),
-				),
+				analysis.insights.some((insight) => insight.includes("Missing consecutive segments 2-4"))
 			);
 		});
 
@@ -347,18 +318,11 @@ describe("Validation Module", () => {
 				{ number: 5, text: "Translation 5" },
 			];
 
-			const analysis = analyzeTranslationFailure(
-				sampleSegments,
-				singleMissingTranslation,
-			);
+			const analysis = analyzeTranslationFailure(sampleSegments, singleMissingTranslation);
 
 			assert.deepStrictEqual(analysis.missingNumbers, [3]);
 			assert.strictEqual(analysis.sequenceGaps.length, 1);
-			assert(
-				analysis.insights.some((insight) =>
-					insight.includes("Only missing segment 3"),
-				),
-			);
+			assert(analysis.insights.some((insight) => insight.includes("Only missing segment 3")));
 		});
 
 		test("should identify exactly 2 missing segments pattern", () => {
@@ -368,18 +332,11 @@ describe("Validation Module", () => {
 				{ number: 5, text: "Translation 5" },
 			];
 
-			const analysis = analyzeTranslationFailure(
-				sampleSegments,
-				twoMissingTranslation,
-			);
+			const analysis = analyzeTranslationFailure(sampleSegments, twoMissingTranslation);
 
 			assert.deepStrictEqual(analysis.missingNumbers, [2, 4]);
 			assert.deepStrictEqual(analysis.extraNumbers, []);
-			assert(
-				analysis.insights.some((insight) =>
-					insight.includes("Exactly 2 missing segments"),
-				),
-			);
+			assert(analysis.insights.some((insight) => insight.includes("Exactly 2 missing segments")));
 		});
 
 		test("should identify when translation goes beyond original range", () => {
@@ -392,15 +349,12 @@ describe("Validation Module", () => {
 				{ number: 10, text: "Way beyond" },
 			];
 
-			const analysis = analyzeTranslationFailure(
-				sampleSegments,
-				beyondRangeTranslation,
-			);
+			const analysis = analyzeTranslationFailure(sampleSegments, beyondRangeTranslation);
 
 			assert(
 				analysis.insights.some((insight) =>
-					insight.includes("Translation goes beyond original range"),
-				),
+					insight.includes("Translation goes beyond original range")
+				)
 			);
 		});
 
@@ -410,17 +364,14 @@ describe("Validation Module", () => {
 				{ number: 4, text: "Translation 4" },
 			];
 
-			const analysis = analyzeTranslationFailure(
-				sampleSegments,
-				multipleGapsTranslation,
-			);
+			const analysis = analyzeTranslationFailure(sampleSegments, multipleGapsTranslation);
 
 			assert.deepStrictEqual(analysis.missingNumbers, [1, 3, 5]);
 			assert.strictEqual(analysis.sequenceGaps.length, 3);
 			assert(
 				analysis.insights.some((insight) =>
-					insight.includes("Missing segments in 3 separate ranges"),
-				),
+					insight.includes("Missing segments in 3 separate ranges")
+				)
 			);
 		});
 
@@ -443,10 +394,7 @@ describe("Validation Module", () => {
 				{ number: 5, text: "Translation 5" },
 			];
 
-			const analysis = analyzeTranslationFailure(
-				sampleSegments,
-				perfectTranslation,
-			);
+			const analysis = analyzeTranslationFailure(sampleSegments, perfectTranslation);
 
 			assert.deepStrictEqual(analysis.missingNumbers, []);
 			assert.deepStrictEqual(analysis.extraNumbers, []);
@@ -481,10 +429,7 @@ describe("Validation Module", () => {
 				{ number: 15, text: "Translation 3" },
 			];
 
-			const analysis = analyzeTranslationFailure(
-				nonSequentialSegments,
-				incompleteTranslation,
-			);
+			const analysis = analyzeTranslationFailure(nonSequentialSegments, incompleteTranslation);
 
 			assert.deepStrictEqual(analysis.missingNumbers, [10]);
 			assert.deepStrictEqual(analysis.extraNumbers, []);
@@ -499,11 +444,7 @@ describe("Validation Module", () => {
 			const chunk: ChunkInfo = {
 				segments: [sampleSegments[0]!, sampleSegments[1]!, sampleSegments[2]!],
 				contextSegments: [],
-				translateSegments: [
-					sampleSegments[0]!,
-					sampleSegments[1]!,
-					sampleSegments[2]!,
-				],
+				translateSegments: [sampleSegments[0]!, sampleSegments[1]!, sampleSegments[2]!],
 				chunkIndex: 2,
 				totalChunks: 5,
 			};
@@ -524,7 +465,7 @@ describe("Validation Module", () => {
 					assert.match(error.message, /Expected segments: \[1, 2, 3\]/);
 					assert.match(error.message, /Got segments: \[1, 2\]/);
 					return true;
-				},
+				}
 			);
 		});
 
@@ -532,11 +473,7 @@ describe("Validation Module", () => {
 			const chunk: ChunkInfo = {
 				segments: [sampleSegments[2]!, sampleSegments[3]!, sampleSegments[4]!],
 				contextSegments: [sampleSegments[1]!],
-				translateSegments: [
-					sampleSegments[2]!,
-					sampleSegments[3]!,
-					sampleSegments[4]!,
-				],
+				translateSegments: [sampleSegments[2]!, sampleSegments[3]!, sampleSegments[4]!],
 				chunkIndex: 1,
 				totalChunks: 2,
 			};
@@ -553,12 +490,12 @@ describe("Validation Module", () => {
 				(error: Error) => {
 					assert.match(
 						error.message,
-						/Chunk 2\/2 validation failed: Missing translations for segments: 3, 4, 5/,
+						/Chunk 2\/2 validation failed: Missing translations for segments: 3, 4, 5/
 					);
 					assert.match(error.message, /Expected segments: \[3, 4, 5\]/);
 					assert.match(error.message, /Got segments: \[10, 11, 12\]/);
 					return true;
-				},
+				}
 			);
 		});
 
@@ -587,10 +524,10 @@ describe("Validation Module", () => {
 						assert(
 							message.includes("validation failed") ||
 								message.includes("Expected") ||
-								message.includes("Got segments"),
+								message.includes("Got segments")
 						);
 						return true;
-					},
+					}
 				);
 			});
 
@@ -606,7 +543,7 @@ describe("Validation Module", () => {
 				// Test wrong segment count
 				assert.throws(
 					() => validateChunk(chunk, [{ number: 1, text: "Only one" }]),
-					/validation failed.*Expected.*Got segments/,
+					/validation failed.*Expected.*Got segments/
 				);
 
 				// Test wrong segment numbers
@@ -617,7 +554,7 @@ describe("Validation Module", () => {
 							{ number: 11, text: "Wrong 2" },
 							{ number: 12, text: "Wrong 3" },
 						]),
-					/validation failed.*Expected.*Got segments/,
+					/validation failed.*Expected.*Got segments/
 				);
 
 				// Test extra segments
@@ -629,7 +566,7 @@ describe("Validation Module", () => {
 							{ number: 3, text: "Translation 3" },
 							{ number: 4, text: "Extra translation" },
 						]),
-					/validation failed.*Expected.*Got segments/,
+					/validation failed.*Expected.*Got segments/
 				);
 			});
 
@@ -642,9 +579,7 @@ describe("Validation Module", () => {
 					totalChunks: 8,
 				};
 
-				const faultyTranslation: TranscriptEntry[] = [
-					{ number: 99, text: "Wrong segment number" },
-				];
+				const faultyTranslation: TranscriptEntry[] = [{ number: 99, text: "Wrong segment number" }];
 
 				assert.throws(
 					() => validateChunk(chunk, faultyTranslation),
@@ -655,7 +590,7 @@ describe("Validation Module", () => {
 						assert.match(message, /Expected segments: \[1, 2\]/);
 						assert.match(message, /Got segments: \[99\]/);
 						return true;
-					},
+					}
 				);
 			});
 		});

@@ -27,10 +27,7 @@ describe("Transcript Module", () => {
 			assert.strictEqual(transcript[0]?.number, 1);
 			assert.strictEqual(transcript[0]?.text, "Hello, how are you today?");
 			assert.strictEqual(transcript[1]?.number, 2);
-			assert.strictEqual(
-				transcript[1]?.text,
-				"I'm doing well, thank you.\nHow about you?",
-			);
+			assert.strictEqual(transcript[1]?.text, "I'm doing well, thank you.\nHow about you?");
 		});
 
 		test("should handle empty segments array", () => {
@@ -49,10 +46,7 @@ describe("Transcript Module", () => {
 			];
 
 			const transcript = createTranscript(segments);
-			assert.strictEqual(
-				transcript[0]?.text,
-				"<i>Italic</i> and {\\an8}positioned",
-			);
+			assert.strictEqual(transcript[0]?.text, "<i>Italic</i> and {\\an8}positioned");
 		});
 
 		test("should preserve non-sequential sequence numbers", () => {

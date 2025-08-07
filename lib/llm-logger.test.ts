@@ -25,7 +25,7 @@ test("LLMLogger - basic request and response logging", async () => {
 		1,
 		5,
 		10,
-		3,
+		3
 	);
 
 	assert.ok(requestId.startsWith("req_"));
@@ -40,7 +40,7 @@ test("LLMLogger - basic request and response logging", async () => {
 		"es",
 		1,
 		5,
-		8,
+		8
 	);
 
 	// Verify log files were created
@@ -99,7 +99,7 @@ test("LLMLogger - error logging", async () => {
 		0,
 		1,
 		5,
-		0,
+		0
 	);
 
 	const testError = new Error("API rate limit exceeded");
@@ -112,7 +112,7 @@ test("LLMLogger - error logging", async () => {
 		"en",
 		"fr",
 		0,
-		1,
+		1
 	);
 
 	// Verify log files were created
@@ -158,7 +158,7 @@ test("LLMLogger - multiple requests create separate files", async () => {
 			i,
 			3,
 			5,
-			2,
+			2
 		);
 		requestIds.push(requestId);
 
@@ -171,7 +171,7 @@ test("LLMLogger - multiple requests create separate files", async () => {
 			"de",
 			i,
 			3,
-			5,
+			5
 		);
 	}
 
@@ -227,21 +227,9 @@ test("LLMLogger - directory creation", async () => {
 	assert.ok(!existsSync(testLogDir));
 
 	// Log something to trigger directory creation
-	const requestId = await logger.logRequest(
-		"gemini-2.5-flash",
-		"Test prompt",
-		"en",
-		"es",
-	);
+	const requestId = await logger.logRequest("gemini-2.5-flash", "Test prompt", "en", "es");
 
-	await logger.logResponse(
-		requestId,
-		"gemini-2.5-flash",
-		"Test response",
-		1000,
-		"en",
-		"es",
-	);
+	await logger.logResponse(requestId, "gemini-2.5-flash", "Test response", 1000, "en", "es");
 
 	// Directory should now exist
 	assert.ok(existsSync(testLogDir));
@@ -257,12 +245,7 @@ test("LLMLogger - request ID generation", async () => {
 
 	// Generate multiple request IDs
 	for (let i = 0; i < 100; i++) {
-		const requestId = await logger.logRequest(
-			"gemini-2.5-flash",
-			"Test prompt",
-			"en",
-			"es",
-		);
+		const requestId = await logger.logRequest("gemini-2.5-flash", "Test prompt", "en", "es");
 		requestIds.add(requestId);
 	}
 
@@ -286,21 +269,9 @@ test("LLMLogger - handles optional parameters", async () => {
 	}
 
 	// Log request with minimal parameters
-	const requestId = await logger.logRequest(
-		"gemini-2.5-flash",
-		"Minimal prompt",
-		"en",
-		"es",
-	);
+	const requestId = await logger.logRequest("gemini-2.5-flash", "Minimal prompt", "en", "es");
 
-	await logger.logResponse(
-		requestId,
-		"gemini-2.5-flash",
-		"Minimal response",
-		500,
-		"en",
-		"es",
-	);
+	await logger.logResponse(requestId, "gemini-2.5-flash", "Minimal response", 500, "en", "es");
 
 	// Verify files were created and contain N/A for optional fields
 	const requestFile = `${testLogDir}/${requestId}_request.txt`;

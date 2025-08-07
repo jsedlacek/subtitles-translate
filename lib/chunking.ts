@@ -34,7 +34,7 @@ function detectNaturalBreaks(segments: SRTSegment[]): number[] {
 export function createIntelligentChunks(
 	segments: SRTSegment[],
 	maxChunkSize: number = 25,
-	contextSize: number = 3,
+	contextSize: number = 3
 ): ChunkInfo[] {
 	if (segments.length <= maxChunkSize) {
 		// No chunking needed
@@ -63,8 +63,7 @@ export function createIntelligentChunks(
 		const chunkEnd = currentIndex + chunkSize;
 		const nearbyBreak = naturalBreaks.find(
 			(breakPoint) =>
-				breakPoint > currentIndex + Math.floor(chunkSize * 0.7) &&
-				breakPoint <= chunkEnd,
+				breakPoint > currentIndex + Math.floor(chunkSize * 0.7) && breakPoint <= chunkEnd
 		);
 
 		if (nearbyBreak && nearbyBreak < segments.length) {
@@ -73,14 +72,10 @@ export function createIntelligentChunks(
 
 		// Get context segments from previous chunk
 		const contextStart = Math.max(0, currentIndex - contextSize);
-		const contextSegments =
-			currentIndex > 0 ? segments.slice(contextStart, currentIndex) : [];
+		const contextSegments = currentIndex > 0 ? segments.slice(contextStart, currentIndex) : [];
 
 		// Get segments to translate in this chunk
-		const translateSegments = segments.slice(
-			currentIndex,
-			currentIndex + chunkSize,
-		);
+		const translateSegments = segments.slice(currentIndex, currentIndex + chunkSize);
 
 		// All segments for this chunk (context + translate)
 		const allSegments = [...contextSegments, ...translateSegments];

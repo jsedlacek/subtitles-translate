@@ -12,13 +12,9 @@ export function createTranscript(segments: SRTSegment[]): TranscriptEntry[] {
 	}));
 }
 
-export function parseTranslatedTranscript(
-	translatedText: string,
-): TranscriptEntry[] {
+export function parseTranslatedTranscript(translatedText: string): TranscriptEntry[] {
 	const entries: TranscriptEntry[] = [];
-	const lines = translatedText
-		.split("\n")
-		.filter((line) => line.trim().length > 0);
+	const lines = translatedText.split("\n").filter((line) => line.trim().length > 0);
 
 	for (const line of lines) {
 		const match = line.match(/^(\d+):\s*(.+)$/);

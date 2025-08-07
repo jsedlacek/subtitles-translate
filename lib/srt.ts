@@ -7,9 +7,7 @@ export interface SRTSegment {
 
 export function parseSRTContent(srtContent: string): SRTSegment[] {
 	const segments: SRTSegment[] = [];
-	const blocks = srtContent
-		.split(/\n\s*\n/)
-		.filter((block) => block.trim().length > 0);
+	const blocks = srtContent.split(/\n\s*\n/).filter((block) => block.trim().length > 0);
 
 	for (const block of blocks) {
 		const lines = block.trim().split("\n");
@@ -23,7 +21,7 @@ export function parseSRTContent(srtContent: string): SRTSegment[] {
 		if (Number.isNaN(sequence)) continue;
 
 		const timeMatch = secondLine.match(
-			/^(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})$/,
+			/^(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})$/
 		);
 		if (!timeMatch || !timeMatch[1] || !timeMatch[2]) continue;
 
@@ -42,7 +40,7 @@ export function parseSRTContent(srtContent: string): SRTSegment[] {
 
 export function reconstructSRT(
 	originalSegments: SRTSegment[],
-	translatedEntries: { number: number; text: string }[],
+	translatedEntries: { number: number; text: string }[]
 ): string {
 	const translatedMap = new Map<number, string>();
 
@@ -56,7 +54,7 @@ export function reconstructSRT(
 		const translatedText = translatedMap.get(segment.sequence);
 		if (!translatedText) {
 			throw new Error(
-				`Missing translation for segment ${segment.sequence}. Original text was: "${segment.text}"`,
+				`Missing translation for segment ${segment.sequence}. Original text was: "${segment.text}"`
 			);
 		}
 
@@ -74,18 +72,12 @@ export function reconstructSRT(
 }
 
 export function createSRTLikeFormat(segments: SRTSegment[]): string {
-	return segments
-		.map((segment) => `${segment.sequence}\n${segment.text}`)
-		.join("\n\n");
+	return segments.map((segment) => `${segment.sequence}\n${segment.text}`).join("\n\n");
 }
 
-export function parseSRTLikeFormat(
-	srtLikeText: string,
-): { number: number; text: string }[] {
+export function parseSRTLikeFormat(srtLikeText: string): { number: number; text: string }[] {
 	const entries: { number: number; text: string }[] = [];
-	const blocks = srtLikeText
-		.split(/\n\s*\n/)
-		.filter((block) => block.trim().length > 0);
+	const blocks = srtLikeText.split(/\n\s*\n/).filter((block) => block.trim().length > 0);
 
 	for (const block of blocks) {
 		const lines = block.trim().split("\n");

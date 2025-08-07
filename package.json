@@ -11,7 +11,11 @@
 		"start": "node --env-file=.env --experimental-strip-types index.ts",
 		"test": "node --test --experimental-strip-types 'lib/**/*.test.ts'",
 		"type-check": "tsc --noEmit",
-		"build": "tsc"
+		"build": "tsc",
+		"check": "biome check .",
+		"format": "biome format --write .",
+		"lint": "biome lint .",
+		"lint:fix": "biome lint --write ."
 	},
 	"keywords": [
 		"subtitles",

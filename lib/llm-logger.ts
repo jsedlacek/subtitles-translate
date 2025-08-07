@@ -35,7 +35,7 @@ export class LLMLogger {
 		chunkIndex?: number,
 		totalChunks?: number,
 		segmentsToTranslate?: number,
-		contextSegments?: number,
+		contextSegments?: number
 	): Promise<string> {
 		const requestId = this.generateRequestId();
 		const timestamp = this.getTimestamp();
@@ -51,7 +51,7 @@ export class LLMLogger {
 				segmentsToTranslate,
 				contextSegments,
 			},
-			"🤖 LLM request started",
+			"🤖 LLM request started"
 		);
 
 		try {
@@ -83,7 +83,7 @@ ${prompt}
 					requestId,
 					requestFile: requestFilePath,
 				},
-				"📝 LLM request logged to file",
+				"📝 LLM request logged to file"
 			);
 		} catch (error) {
 			this.logger.error(
@@ -91,7 +91,7 @@ ${prompt}
 					error: error instanceof Error ? error.message : String(error),
 					requestId,
 				},
-				"❌ Failed to log LLM request to file",
+				"❌ Failed to log LLM request to file"
 			);
 		}
 
@@ -107,7 +107,7 @@ ${prompt}
 		targetLanguage: string,
 		chunkIndex?: number,
 		totalChunks?: number,
-		translatedSegments?: number,
+		translatedSegments?: number
 	): Promise<void> {
 		const timestamp = this.getTimestamp();
 
@@ -122,7 +122,7 @@ ${prompt}
 				totalChunks,
 				translatedSegments,
 			},
-			"✅ LLM request completed",
+			"✅ LLM request completed"
 		);
 
 		try {
@@ -154,7 +154,7 @@ ${response}
 					requestId,
 					responseFile: responseFilePath,
 				},
-				"📝 LLM response logged to file",
+				"📝 LLM response logged to file"
 			);
 		} catch (error) {
 			this.logger.error(
@@ -162,7 +162,7 @@ ${response}
 					error: error instanceof Error ? error.message : String(error),
 					requestId,
 				},
-				"❌ Failed to log LLM response to file",
+				"❌ Failed to log LLM response to file"
 			);
 		}
 	}
@@ -176,7 +176,7 @@ ${response}
 		sourceLanguage: string,
 		targetLanguage: string,
 		chunkIndex?: number,
-		totalChunks?: number,
+		totalChunks?: number
 	): Promise<void> {
 		const timestamp = this.getTimestamp();
 
@@ -189,7 +189,7 @@ ${response}
 				chunkIndex,
 				totalChunks,
 			},
-			"❌ LLM request failed",
+			"❌ LLM request failed"
 		);
 
 		try {
@@ -224,16 +224,15 @@ ${prompt}
 					requestId,
 					errorFile: errorFilePath,
 				},
-				"📝 LLM error logged to file",
+				"📝 LLM error logged to file"
 			);
 		} catch (logError) {
 			this.logger.error(
 				{
-					error:
-						logError instanceof Error ? logError.message : String(logError),
+					error: logError instanceof Error ? logError.message : String(logError),
 					requestId,
 				},
-				"❌ Failed to log LLM error to file",
+				"❌ Failed to log LLM error to file"
 			);
 		}
 	}
@@ -246,10 +245,7 @@ ${prompt}
 // Utility function to create a singleton LLM logger instance
 let globalLLMLogger: LLMLogger | null = null;
 
-export function createLLMLogger(
-	logger: pino.Logger,
-	logDir?: string,
-): LLMLogger {
+export function createLLMLogger(logger: pino.Logger, logDir?: string): LLMLogger {
 	if (!globalLLMLogger) {
 		globalLLMLogger = new LLMLogger(logger, logDir);
 	}
@@ -258,9 +254,7 @@ export function createLLMLogger(
 
 export function getLLMLogger(): LLMLogger {
 	if (!globalLLMLogger) {
-		throw new Error(
-			"LLM logger not initialized. Call createLLMLogger() first.",
-		);
+		throw new Error("LLM logger not initialized. Call createLLMLogger() first.");
 	}
 	return globalLLMLogger;
 }

@@ -20,13 +20,6 @@
 		"skipLibCheck": true,
 		"resolveJsonModule": true
 	},
-	"include": [
-		"*.js",
-		"*.ts",
-		"*.d.ts",
-		"src/**/*.js",
-		"src/**/*.ts",
-		"types/**/*.d.ts"
-	],
+	"include": ["*.js", "*.ts", "*.d.ts", "src/**/*.js", "src/**/*.ts", "types/**/*.d.ts"],
 	"exclude": ["node_modules", "dist", "downloads"]
 }

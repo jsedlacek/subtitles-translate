@@ -66,13 +66,8 @@ interface CLIArgs {
 /**
  * Initialize OpenSubtitles client and login
  */
-async function createOpenSubtitlesClient(
-	config: Config,
-): Promise<OpenSubtitles> {
-	logger.info(
-		{ username: config.opensubtitlesUsername },
-		"🔐 Logging into OpenSubtitles...",
-	);
+async function createOpenSubtitlesClient(config: Config): Promise<OpenSubtitles> {
+	logger.info({ username: config.opensubtitlesUsername }, "🔐 Logging into OpenSubtitles...");
 
 	const client = new OpenSubtitles({
 		apikey: config.opensubtitlesApiKey,
@@ -104,7 +99,7 @@ function initializeLLMLogger(logger: pino.Logger): void {
 		{
 			logDir: "./logs",
 		},
-		"📝 LLM logger initialized - all requests and responses will be logged as separate text files",
+		"📝 LLM logger initialized - all requests and responses will be logged as separate text files"
 	);
 }
 
@@ -114,7 +109,7 @@ function initializeLLMLogger(logger: pino.Logger): void {
 async function searchSubtitles(
 	client: OpenSubtitles,
 	query: string,
-	sourceLanguage: string,
+	sourceLanguage: string
 ): Promise<SubtitleSearchResult[]> {
 	logger.info({ query, sourceLanguage }, "🔍 Searching for subtitles");
 
@@ -140,7 +135,7 @@ async function searchSubtitles(
 async function downloadSubtitles(
 	client: OpenSubtitles,
 	subtitleInfo: SubtitleSearchResult,
-	outputDir: string = "./downloads",
+	outputDir: string = "./downloads"
 ): Promise<string> {
 	const release = subtitleInfo.attributes?.release;
 	const fileId = subtitleInfo.attributes?.files?.[0]?.file_id;
@@ -151,7 +146,7 @@ async function downloadSubtitles(
 			fileId,
 			outputDir,
 		},
-		"⬇  Downloading subtitles",
+		"⬇  Downloading subtitles"
 	);
 
 	// Ensure output directory exists
@@ -197,7 +192,7 @@ async function translateSubtitlesFile(
 	inputPath: string,
 	outputPath: string,
 	sourceLanguage: string,
-	targetLanguage: string,
+	targetLanguage: string
 ): Promise<string> {
 	logger.info(
 		{
@@ -206,7 +201,7 @@ async function translateSubtitlesFile(
 			sourceLanguage,
 			targetLanguage,
 		},
-		"🌐 Starting subtitles file translation",
+		"🌐 Starting subtitles file translation"
 	);
 
 	// Read the entire SRT content
@@ -219,7 +214,7 @@ async function translateSubtitlesFile(
 			lines: srtContent.split("\n").length,
 			totalSegments,
 		},
-		"📄 Loaded SRT content for translation",
+		"📄 Loaded SRT content for translation"
 	);
 
 	logger.info("🚀 Translating subtitles content");
@@ -239,9 +234,9 @@ async function translateSubtitlesFile(
 						completed: progress.completed,
 						total: progress.total,
 					},
-					"🔄 Translation progress",
+					"🔄 Translation progress"
 				);
-			},
+			}
 		);
 
 		// Write translated subtitles file
@@ -252,7 +247,7 @@ async function translateSubtitlesFile(
 				translatedLength: translatedContent.length,
 				finalSegments: countSRTSegments(translatedContent),
 			},
-			"✅ Translated subtitles saved",
+			"✅ Translated subtitles saved"
 		);
 
 		return outputPath;
@@ -261,7 +256,7 @@ async function translateSubtitlesFile(
 			{
 				error: error instanceof Error ? error.message : String(error),
 			},
-			"❌ Translation failed",
+			"❌ Translation failed"
 		);
 		throw error;
 	}
@@ -273,7 +268,7 @@ async function translateSubtitlesFile(
 async function processSubtitlesFromSearch(
 	config: Config,
 	query: string,
-	outputPath?: string,
+	outputPath?: string
 ): Promise<{ original: string; translated: string }> {
 	logger.info(
 		{
@@ -281,7 +276,7 @@ async function processSubtitlesFromSearch(
 			sourceLanguage: config.sourceLanguage,
 			targetLanguage: config.targetLanguage,
 		},
-		"🚀 Starting subtitles search and translation pipeline",
+		"🚀 Starting subtitles search and translation pipeline"
 	);
 
 	// Initialize clients
@@ -289,11 +284,7 @@ async function processSubtitlesFromSearch(
 	const geminiModel = createGeminiModel(config.geminiApiKey);
 
 	// Search for subtitles
-	const results = await searchSubtitles(
-		opensubtitlesClient,
-		query,
-		config.sourceLanguage,
-	);
+	const results = await searchSubtitles(opensubtitlesClient, query, config.sourceLanguage);
 
 	// Use the first result (best match)
 	const bestMatch = results[0];
@@ -310,19 +301,15 @@ async function processSubtitlesFromSearch(
 			downloads: attributes?.download_count,
 			language: attributes?.language,
 		},
-		"📺 Selected subtitles",
+		"📺 Selected subtitles"
 	);
 
 	// Download subtitles
-	const downloadedPath = await downloadSubtitles(
-		opensubtitlesClient,
-		bestMatch,
-	);
+	const downloadedPath = await downloadSubtitles(opensubtitlesClient, bestMatch);
 
 	// Create output path for translated subtitles
 	const translatedPath =
-		outputPath ||
-		generateDefaultOutputPath(downloadedPath, config.targetLanguage);
+		outputPath || generateDefaultOutputPath(downloadedPath, config.targetLanguage);
 
 	// Translate subtitles
 	await translateSubtitlesFile(
@@ -330,7 +317,7 @@ async function processSubtitlesFromSearch(
 		downloadedPath,
 		translatedPath,
 		config.sourceLanguage,
-		config.targetLanguage,
+		config.targetLanguage
 	);
 
 	return {
@@ -345,7 +332,7 @@ async function processSubtitlesFromSearch(
 async function processSubtitlesFromFile(
 	config: Config,
 	inputPath: string,
-	outputPath?: string,
+	outputPath?: string
 ): Promise<{ original: string; translated: string }> {
 	logger.info(
 		{
@@ -353,7 +340,7 @@ async function processSubtitlesFromFile(
 			sourceLanguage: config.sourceLanguage,
 			targetLanguage: config.targetLanguage,
 		},
-		"🚀 Starting local file translation pipeline",
+		"🚀 Starting local file translation pipeline"
 	);
 
 	// Check if input file exists
@@ -365,8 +352,7 @@ async function processSubtitlesFromFile(
 	const geminiModel = createGeminiModel(config.geminiApiKey);
 
 	// Create output path for translated subtitles
-	const translatedPath =
-		outputPath || generateDefaultOutputPath(inputPath, config.targetLanguage);
+	const translatedPath = outputPath || generateDefaultOutputPath(inputPath, config.targetLanguage);
 
 	// Translate subtitles
 	await translateSubtitlesFile(
@@ -374,7 +360,7 @@ async function processSubtitlesFromFile(
 		inputPath,
 		translatedPath,
 		config.sourceLanguage,
-		config.targetLanguage,
+		config.targetLanguage
 	);
 
 	return {
@@ -386,10 +372,7 @@ async function processSubtitlesFromFile(
 /**
  * Generate default output path for translated subtitles
  */
-function generateDefaultOutputPath(
-	inputPath: string,
-	targetLanguage: string,
-): string {
+function generateDefaultOutputPath(inputPath: string, targetLanguage: string): string {
 	const dir = path.dirname(inputPath);
 	const baseName = path.basename(inputPath, path.extname(inputPath));
 	return path.join(dir, `${baseName}_${targetLanguage}.srt`);
@@ -402,9 +385,7 @@ function validateEnvironment(requiredVars: string[]): void {
 	const missingVars = requiredVars.filter((varName) => !process.env[varName]);
 
 	if (missingVars.length > 0) {
-		throw new Error(
-			`Missing required environment variables: ${missingVars.join(", ")}`,
-		);
+		throw new Error(`Missing required environment variables: ${missingVars.join(", ")}`);
 	}
 }
 
@@ -447,23 +428,15 @@ function parseArguments(): CLIArgs {
 				throw new Error("Either --search or --input must be provided");
 			}
 			if (argv.search && argv.input) {
-				throw new Error(
-					"Cannot use both --search and --input at the same time",
-				);
+				throw new Error("Cannot use both --search and --input at the same time");
 			}
 			return true;
 		})
-		.example(
-			'$0 --search "The Matrix"',
-			"Search and translate The Matrix subtitles",
-		)
-		.example(
-			"$0 --input ./movie.srt --target-language es",
-			"Translate local SRT file to Spanish",
-		)
+		.example('$0 --search "The Matrix"', "Search and translate The Matrix subtitles")
+		.example("$0 --input ./movie.srt --target-language es", "Translate local SRT file to Spanish")
 		.example(
 			'$0 -s "Breaking Bad S01E01" -t fr -o ./translated.srt',
-			"Search Breaking Bad and save to specific file",
+			"Search Breaking Bad and save to specific file"
 		)
 		.help()
 		.alias("help", "h")
@@ -520,7 +493,7 @@ async function main(): Promise<void> {
 				targetLanguage: args.targetLanguage,
 				sourceLanguage: args.sourceLanguage,
 			},
-			"🚀 Starting subtitles translation",
+			"🚀 Starting subtitles translation"
 		);
 
 		logger.debug(
@@ -531,7 +504,7 @@ async function main(): Promise<void> {
 				nodeEnv: process.env.NODE_ENV,
 				logLevel: process.env.LOG_LEVEL || "info",
 			},
-			"Environment information",
+			"Environment information"
 		);
 
 		// Validate environment variables
@@ -542,7 +515,7 @@ async function main(): Promise<void> {
 			requiredEnvVars.push(
 				"OPENSUBTITLES_API_KEY",
 				"OPENSUBTITLES_USERNAME",
-				"OPENSUBTITLES_PASSWORD",
+				"OPENSUBTITLES_PASSWORD"
 			);
 		}
 
@@ -557,11 +530,7 @@ async function main(): Promise<void> {
 
 		if (args.search) {
 			// Search and download subtitles
-			result = await processSubtitlesFromSearch(
-				config,
-				args.search,
-				args.output,
-			);
+			result = await processSubtitlesFromSearch(config, args.search, args.output);
 		} else if (args.input) {
 			// Translate local file
 			result = await processSubtitlesFromFile(config, args.input, args.output);
@@ -578,7 +547,7 @@ async function main(): Promise<void> {
 				error: error instanceof Error ? error.message : String(error),
 				stack: error instanceof Error ? error.stack : undefined,
 			},
-			`💥 Error occurred`,
+			`💥 Error occurred`
 		);
 
 		if (

@@ -7,11 +7,7 @@ import {
 	parseSRTLikeFormat,
 	reconstructSRT,
 } from "./srt.ts";
-import {
-	createTranscript,
-	parseTranslatedTranscript,
-	type TranscriptEntry,
-} from "./transcript.ts";
+import { createTranscript, parseTranslatedTranscript, type TranscriptEntry } from "./transcript.ts";
 import { validateTranslation } from "./validation.ts";
 
 describe("Integration Tests", () => {
@@ -89,9 +85,7 @@ Another segment`;
 Single segment`;
 
 		const segments = parseSRTContent(singleSRT);
-		const translatedEntries: TranscriptEntry[] = [
-			{ number: 1, text: "Segmento único" },
-		];
+		const translatedEntries: TranscriptEntry[] = [{ number: 1, text: "Segmento único" }];
 
 		validateTranslation(segments, translatedEntries);
 		const reconstructed = reconstructSRT(segments, translatedEntries);
@@ -217,13 +211,10 @@ Line three
 		const finalSegments = parseSRTContent(reconstructed);
 
 		assert.strictEqual(finalSegments.length, 2);
-		assert.strictEqual(
-			finalSegments[0]?.text,
-			"Línea uno\nLínea dos\nLínea tres",
-		);
+		assert.strictEqual(finalSegments[0]?.text, "Línea uno\nLínea dos\nLínea tres");
 		assert.strictEqual(
 			finalSegments[1]?.text,
-			"<i>Línea formateada uno</i>\n<b>Línea formateada dos</b>",
+			"<i>Línea formateada uno</i>\n<b>Línea formateada dos</b>"
 		);
 	});
 

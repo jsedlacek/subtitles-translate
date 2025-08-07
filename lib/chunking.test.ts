@@ -38,9 +38,7 @@ describe("Chunking Module", () => {
 			assert(chunks.length > 1);
 
 			// Verify all segments are present when combining translateSegments
-			const allTranslateSegments = chunks.flatMap(
-				(chunk) => chunk.translateSegments,
-			);
+			const allTranslateSegments = chunks.flatMap((chunk) => chunk.translateSegments);
 			assert.strictEqual(allTranslateSegments.length, 50);
 
 			// Verify no segment is lost
@@ -133,10 +131,8 @@ describe("Chunking Module", () => {
 
 				// Context segments should come from the end of the previous chunk's range
 				const lastContextSequence =
-					secondChunk?.contextSegments[secondChunk?.contextSegments.length - 1]
-						?.sequence;
-				const firstTranslateSequence =
-					secondChunk?.translateSegments[0]?.sequence;
+					secondChunk?.contextSegments[secondChunk?.contextSegments.length - 1]?.sequence;
+				const firstTranslateSequence = secondChunk?.translateSegments[0]?.sequence;
 				assert(lastContextSequence! < firstTranslateSequence!);
 			}
 		});
@@ -238,9 +234,7 @@ describe("Chunking Module", () => {
 			assert(chunks.length >= 2);
 
 			// Verify segments are properly distributed
-			const allTranslateSegments = chunks.flatMap(
-				(chunk) => chunk.translateSegments,
-			);
+			const allTranslateSegments = chunks.flatMap((chunk) => chunk.translateSegments);
 			assert.strictEqual(allTranslateSegments.length, 4);
 		});
 	});

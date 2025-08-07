@@ -13,7 +13,7 @@ async function translateChunk(
 	chunk: ChunkInfo,
 	sourceLanguage: string,
 	targetLanguage: string,
-	logger: pino.Logger,
+	logger: pino.Logger
 ): Promise<{
 	entries: TranscriptEntry[];
 	rawInput: string;
@@ -31,11 +31,10 @@ async function translateChunk(
 				sourceLanguage,
 				targetLanguage,
 				logger,
-				attempt,
+				attempt
 			);
 		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : String(error);
+			const errorMessage = error instanceof Error ? error.message : String(error);
 
 			// Check if this is a validation error that we should retry
 			const isValidationError =
@@ -52,7 +51,7 @@ async function translateChunk(
 						error: errorMessage,
 						retryReason: "LLM validation failure",
 					},
-					`Chunk translation attempt ${attempt} failed, retrying...`,
+					`Chunk translation attempt ${attempt} failed, retrying...`
 				);
 				// Small delay before retry to avoid overwhelming the API
 				await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
@@ -68,16 +67,14 @@ async function translateChunk(
 					error: errorMessage,
 					finalAttempt: true,
 				},
-				`Chunk translation failed after ${attempt} attempts`,
+				`Chunk translation failed after ${attempt} attempts`
 			);
 			throw error;
 		}
 	}
 
 	// This should never be reached, but TypeScript requires it
-	throw new Error(
-		`Unexpected error: exceeded ${maxRetries} retries without resolution`,
-	);
+	throw new Error(`Unexpected error: exceeded ${maxRetries} retries without resolution`);
 }
 
 async function translateChunkAttempt(
@@ -86,7 +83,7 @@ async function translateChunkAttempt(
 	sourceLanguage: string,
 	targetLanguage: string,
 	logger: pino.Logger,
-	attempt: number,
+	attempt: number
 ): Promise<{
 	entries: TranscriptEntry[];
 	rawInput: string;
@@ -94,18 +91,14 @@ async function translateChunkAttempt(
 }> {
 	const contextText =
 		chunk.contextSegments.length > 0
-			? chunk.contextSegments
-					.map((segment) => `${segment.sequence}\n${segment.text}`)
-					.join("\n\n")
+			? chunk.contextSegments.map((segment) => `${segment.sequence}\n${segment.text}`).join("\n\n")
 			: "";
 
 	const translateText = chunk.translateSegments
 		.map((segment) => `${segment.sequence}\n${segment.text}`)
 		.join("\n\n");
 
-	const translateSegmentNumbers = chunk.translateSegments.map(
-		(s) => s.sequence,
-	);
+	const translateSegmentNumbers = chunk.translateSegments.map((s) => s.sequence);
 
 	let prompt = `You are a professional subtitles translator. Translate the following subtitles from ${sourceLanguage} to ${targetLanguage}.
 
@@ -141,8 +134,8 @@ EXAMPLE OUTPUT FORMAT:
 ${translateSegmentNumbers[0]}
 [translated text for segment ${translateSegmentNumbers[0]}]
 
-${translateSegmentNumbers[1] || translateSegmentNumbers[0]! + 1}
-[translated text for segment ${translateSegmentNumbers[1] || translateSegmentNumbers[0]! + 1}]
+${translateSegmentNumbers[1] ?? (translateSegmentNumbers[0] ? translateSegmentNumbers[0] + 1 : 2)}
+[translated text for segment ${translateSegmentNumbers[1] ?? (translateSegmentNumbers[0] ? translateSegmentNumbers[0] + 1 : 2)}]
 
 Remember: Output ONLY the ${chunk.translateSegments.length} segments listed above, maintaining exact 1:1 mapping.`;
 
@@ -158,8 +151,10 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 		chunk.chunkIndex,
 		chunk.totalChunks,
 		chunk.translateSegments.length,
-		chunk.contextSegments.length,
+		chunk.contextSegments.length
 	);
+
+	let translatedContent = "";
 
 	try {
 		const response = await model.models.generateContent({
@@ -167,7 +162,7 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 			contents: prompt,
 		});
 
-		const translatedContent = response.text || "";
+		translatedContent = response.text || "";
 
 		// Log successful response
 		const duration = Date.now() - startTime;
@@ -183,7 +178,7 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 			targetLanguage,
 			chunk.chunkIndex,
 			chunk.totalChunks,
-			translatedEntries.length,
+			translatedEntries.length
 		);
 	} catch (err) {
 		const duration = Date.now() - startTime;
@@ -198,7 +193,7 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 			sourceLanguage,
 			targetLanguage,
 			chunk.chunkIndex,
-			chunk.totalChunks,
+			chunk.totalChunks
 		);
 
 		throw error;
@@ -221,7 +216,7 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 				actualSegments: translatedEntries.map((e) => e.number),
 				validationStatus: "passed",
 			},
-			`Translated chunk successfully validated on attempt ${attempt}`,
+			`Translated chunk successfully validated on attempt ${attempt}`
 		);
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
@@ -239,7 +234,7 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 				rawPrompt: `${prompt.substring(0, 500)}...`,
 				rawResponse: `${finalContent.substring(0, 500)}...`,
 			},
-			`Chunk validation failed on attempt ${attempt}`,
+			`Chunk validation failed on attempt ${attempt}`
 		);
 
 		throw new Error(`Chunk validation failed: ${errorMessage}`);
@@ -258,11 +253,7 @@ export async function translateTranscript(
 	sourceLanguage: string,
 	targetLanguage: string,
 	logger: pino.Logger,
-	onProgress?: (progress: {
-		completed: number;
-		total: number;
-		percentage: number;
-	}) => void,
+	onProgress?: (progress: { completed: number; total: number; percentage: number }) => void
 ): Promise<{
 	translatedEntries: TranscriptEntry[];
 	rawInput: string;
@@ -276,7 +267,7 @@ export async function translateTranscript(
 			sourceLanguage,
 			targetLanguage,
 		},
-		"Translating transcript with Gemini using concurrent intelligent chunking",
+		"Translating transcript with Gemini using concurrent intelligent chunking"
 	);
 
 	// Convert transcript entries back to segments for chunking analysis
@@ -296,7 +287,7 @@ export async function translateTranscript(
 			numberOfChunks: chunks.length,
 			chunkSizes: chunks.map((c) => c.translateSegments.length),
 		},
-		"Created intelligent chunks for concurrent translation",
+		"Created intelligent chunks for concurrent translation"
 	);
 
 	// Track progress state
@@ -325,16 +316,10 @@ export async function translateTranscript(
 				contextSegments: chunk.contextSegments.map((s) => s.sequence),
 				translateSegments: chunk.translateSegments.map((s) => s.sequence),
 			},
-			"Starting concurrent chunk processing",
+			"Starting concurrent chunk processing"
 		);
 
-		const chunkResult = await translateChunk(
-			model,
-			chunk,
-			sourceLanguage,
-			targetLanguage,
-			logger,
-		);
+		const chunkResult = await translateChunk(model, chunk, sourceLanguage, targetLanguage, logger);
 
 		// Update progress after this chunk completes
 		updateProgress(chunkResult.entries.length);
@@ -345,7 +330,7 @@ export async function translateTranscript(
 				chunkTranslated: chunkResult.entries.length,
 				totalCompleted: completedSegments,
 			},
-			"Concurrent chunk translation completed",
+			"Concurrent chunk translation completed"
 		);
 
 		return {
@@ -387,7 +372,7 @@ export async function translateTranscript(
 			translatedSegments: allTranslatedEntries.length,
 			concurrentChunks: chunks.length,
 		},
-		"All concurrent chunks translated, assembling final result",
+		"All concurrent chunks translated, assembling final result"
 	);
 
 	// Sort translated entries by segment number to ensure correct order

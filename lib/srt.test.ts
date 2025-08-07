@@ -88,10 +88,7 @@ See you later!`;
 			assert.strictEqual(segments.length, 3);
 			assert.strictEqual(segments[0]?.text, "<i>Italic text</i>");
 			assert.strictEqual(segments[1]?.text, "{\\an8}Positioned text");
-			assert.strictEqual(
-				segments[2]?.text,
-				"<b>Bold text</b> with normal text",
-			);
+			assert.strictEqual(segments[2]?.text, "<b>Bold text</b> with normal text");
 		});
 
 		test("should handle empty lines and extra whitespace", () => {
@@ -168,10 +165,7 @@ Single line
 			assert.strictEqual(segments.length, 3);
 			assert.strictEqual(segments[0]?.text, "Line one\nLine two\nLine three");
 			assert.strictEqual(segments[1]?.text, "Single line");
-			assert.strictEqual(
-				segments[2]?.text,
-				"<i>Formatted line one</i>\n<b>Formatted line two</b>",
-			);
+			assert.strictEqual(segments[2]?.text, "<i>Formatted line one</i>\n<b>Formatted line two</b>");
 		});
 
 		test("should handle non-sequential sequence numbers", () => {
@@ -237,7 +231,7 @@ Et vous?`;
 
 			assert.throws(
 				() => reconstructSRT(originalSegments, translatedEntries),
-				/Missing translation for segment 2/,
+				/Missing translation for segment 2/
 			);
 		});
 
@@ -255,9 +249,7 @@ Et vous?`;
 					text: "Original",
 				},
 			];
-			const translatedEntries = [
-				{ number: 1, text: "<i>Italic</i> and {\\an8}positioned" },
-			];
+			const translatedEntries = [{ number: 1, text: "<i>Italic</i> and {\\an8}positioned" }];
 
 			const reconstructed = reconstructSRT(originalSegments, translatedEntries);
 			assert(reconstructed.includes("<i>Italic</i> and {\\an8}positioned"));
@@ -284,12 +276,8 @@ Et vous?`;
 			];
 
 			const reconstructed = reconstructSRT(originalSegments, translatedEntries);
-			assert(
-				reconstructed.includes("5\n00:00:01,000 --> 00:00:03,000\nPremier"),
-			);
-			assert(
-				reconstructed.includes("10\n00:00:04,000 --> 00:00:06,000\nDeuxième"),
-			);
+			assert(reconstructed.includes("5\n00:00:01,000 --> 00:00:03,000\nPremier"));
+			assert(reconstructed.includes("10\n00:00:04,000 --> 00:00:06,000\nDeuxième"));
 		});
 	});
 

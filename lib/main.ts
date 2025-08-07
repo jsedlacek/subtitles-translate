@@ -4,10 +4,7 @@ import { saveDebugData } from "./debug.ts";
 import { parseSRTContent, reconstructSRT } from "./srt.ts";
 import { createTranscript } from "./transcript.ts";
 import { translateTranscript } from "./translation.ts";
-import {
-	analyzeTranslationFailure,
-	validateTranslation,
-} from "./validation.ts";
+import { analyzeTranslationFailure, validateTranslation } from "./validation.ts";
 
 export async function translateSRTContent(
 	model: GoogleGenAI,
@@ -15,11 +12,7 @@ export async function translateSRTContent(
 	sourceLanguage: string,
 	targetLanguage: string,
 	logger: pino.Logger,
-	onProgress?: (progress: {
-		completed: number;
-		total: number;
-		percentage: number;
-	}) => void,
+	onProgress?: (progress: { completed: number; total: number; percentage: number }) => void
 ): Promise<string> {
 	logger.debug(
 		{
@@ -27,7 +20,7 @@ export async function translateSRTContent(
 			sourceLanguage,
 			targetLanguage,
 		},
-		"Starting SRT translation process",
+		"Starting SRT translation process"
 	);
 
 	const originalSegments = parseSRTContent(srtContent);
@@ -37,7 +30,7 @@ export async function translateSRTContent(
 		{
 			totalSegments,
 		},
-		"Parsed SRT into segments",
+		"Parsed SRT into segments"
 	);
 
 	const transcriptEntries = createTranscript(originalSegments);
@@ -48,7 +41,7 @@ export async function translateSRTContent(
 		sourceLanguage,
 		targetLanguage,
 		logger,
-		onProgress,
+		onProgress
 	);
 
 	const { translatedEntries, rawInput, rawOutput } = translationResult;
@@ -61,7 +54,7 @@ export async function translateSRTContent(
 				translatedSegments: translatedEntries.length,
 				validationStatus: "passed",
 			},
-			"Translation validation passed",
+			"Translation validation passed"
 		);
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
@@ -73,14 +66,11 @@ export async function translateSRTContent(
 			transcriptEntries,
 			rawInput,
 			rawOutput,
-			logger,
+			logger
 		);
 
 		// Get detailed analysis for logging
-		const analysis = analyzeTranslationFailure(
-			originalSegments,
-			translatedEntries,
-		);
+		const analysis = analyzeTranslationFailure(originalSegments, translatedEntries);
 
 		logger.error(
 			{
@@ -104,10 +94,10 @@ export async function translateSRTContent(
 				debugDataSaved: true,
 				rawLLMDataIncluded: true,
 			},
-			"Translation validation failed - this usually indicates the LLM didn't follow the expected format",
+			"Translation validation failed - this usually indicates the LLM didn't follow the expected format"
 		);
 		throw new Error(
-			`Translation validation failed: ${errorMessage}. Please check that the LLM is properly following the transcript format.`,
+			`Translation validation failed: ${errorMessage}. Please check that the LLM is properly following the transcript format.`
 		);
 	}
 
@@ -119,7 +109,7 @@ export async function translateSRTContent(
 			reconstructedLength: reconstructedSRT.length,
 			totalSegments,
 		},
-		"SRT reconstruction completed",
+		"SRT reconstruction completed"
 	);
 
 	return reconstructedSRT;
