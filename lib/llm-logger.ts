@@ -3,49 +3,21 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type pino from "pino";
 
-export interface LLMLogEntry {
-	timestamp: string;
-	requestId: string;
-	model: string;
-	chunkIndex?: number;
-	totalChunks?: number;
-	sourceLanguage: string;
-	targetLanguage: string;
-	request: {
-		prompt: string;
-		promptLength: number;
-		segmentsToTranslate: number;
-		contextSegments: number;
-	};
-	response: {
-		content: string;
-		responseLength: number;
-		duration: number;
-		translatedSegments: number;
-	};
-	metadata?: Record<string, unknown>;
-}
-
 export class LLMLogger {
 	private logDir: string;
-	private logFile: string;
 	private logger: pino.Logger;
 
 	constructor(logger: pino.Logger, logDir = "./logs") {
 		this.logger = logger;
 		this.logDir = logDir;
-		this.logFile = path.join(
-			logDir,
-			`llm-requests-${this.getDateString()}.jsonl`,
-		);
-	}
-
-	private getDateString(): string {
-		return new Date().toISOString().split("T")[0]!;
 	}
 
 	private generateRequestId(): string {
 		return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+	}
+
+	private getTimestamp(): string {
+		return new Date().toISOString();
 	}
 
 	async ensureLogDirectory(): Promise<void> {
@@ -58,15 +30,15 @@ export class LLMLogger {
 	async logRequest(
 		model: string,
 		prompt: string,
-		_sourceLanguage: string,
-		_targetLanguage: string,
+		sourceLanguage: string,
+		targetLanguage: string,
 		chunkIndex?: number,
 		totalChunks?: number,
 		segmentsToTranslate?: number,
 		contextSegments?: number,
-		_metadata?: Record<string, unknown>,
 	): Promise<string> {
 		const requestId = this.generateRequestId();
+		const timestamp = this.getTimestamp();
 
 		// Log the request start
 		this.logger.debug(
@@ -82,76 +54,34 @@ export class LLMLogger {
 			"🤖 LLM request started",
 		);
 
-		return requestId;
-	}
-
-	async logResponse(
-		requestId: string,
-		model: string,
-		prompt: string,
-		response: string,
-		duration: number,
-		sourceLanguage: string,
-		targetLanguage: string,
-		chunkIndex?: number,
-		totalChunks?: number,
-		segmentsToTranslate?: number,
-		contextSegments?: number,
-		translatedSegments?: number,
-		metadata?: Record<string, unknown>,
-	): Promise<void> {
-		const timestamp = new Date().toISOString();
-
-		const logEntry: LLMLogEntry = {
-			timestamp,
-			requestId,
-			model,
-			...(chunkIndex !== undefined && { chunkIndex }),
-			...(totalChunks !== undefined && { totalChunks }),
-			sourceLanguage,
-			targetLanguage,
-			request: {
-				prompt,
-				promptLength: prompt.length,
-				segmentsToTranslate: segmentsToTranslate || 0,
-				contextSegments: contextSegments || 0,
-			},
-			response: {
-				content: response,
-				responseLength: response.length,
-				duration,
-				translatedSegments: translatedSegments || 0,
-			},
-			...(metadata && { metadata }),
-		};
-
-		// Log completion with summary
-		this.logger.debug(
-			{
-				requestId,
-				model,
-				duration,
-				promptLength: prompt.length,
-				responseLength: response.length,
-				chunkIndex,
-				totalChunks,
-				segmentsToTranslate,
-				translatedSegments,
-			},
-			"✅ LLM request completed",
-		);
-
 		try {
 			await this.ensureLogDirectory();
 
-			// Append to JSONL file (one JSON object per line)
-			const logLine = `${JSON.stringify(logEntry)}\n`;
-			await writeFile(this.logFile, logLine, { flag: "a" });
+			// Create request file
+			const requestFileName = `${requestId}_request.txt`;
+			const requestFilePath = path.join(this.logDir, requestFileName);
+
+			const requestContent = `TIMESTAMP: ${timestamp}
+REQUEST_ID: ${requestId}
+MODEL: ${model}
+SOURCE_LANGUAGE: ${sourceLanguage}
+TARGET_LANGUAGE: ${targetLanguage}
+CHUNK_INDEX: ${chunkIndex ?? "N/A"}
+TOTAL_CHUNKS: ${totalChunks ?? "N/A"}
+SEGMENTS_TO_TRANSLATE: ${segmentsToTranslate ?? "N/A"}
+CONTEXT_SEGMENTS: ${contextSegments ?? "N/A"}
+PROMPT_LENGTH: ${prompt.length}
+
+=== PROMPT ===
+${prompt}
+`;
+
+			await writeFile(requestFilePath, requestContent, "utf8");
 
 			this.logger.debug(
 				{
 					requestId,
-					logFile: this.logFile,
+					requestFile: requestFilePath,
 				},
 				"📝 LLM request logged to file",
 			);
@@ -160,9 +90,79 @@ export class LLMLogger {
 				{
 					error: error instanceof Error ? error.message : String(error),
 					requestId,
-					logFile: this.logFile,
 				},
 				"❌ Failed to log LLM request to file",
+			);
+		}
+
+		return requestId;
+	}
+
+	async logResponse(
+		requestId: string,
+		model: string,
+		response: string,
+		duration: number,
+		sourceLanguage: string,
+		targetLanguage: string,
+		chunkIndex?: number,
+		totalChunks?: number,
+		translatedSegments?: number,
+	): Promise<void> {
+		const timestamp = this.getTimestamp();
+
+		// Log completion with summary
+		this.logger.debug(
+			{
+				requestId,
+				model,
+				duration,
+				responseLength: response.length,
+				chunkIndex,
+				totalChunks,
+				translatedSegments,
+			},
+			"✅ LLM request completed",
+		);
+
+		try {
+			await this.ensureLogDirectory();
+
+			// Create response file
+			const responseFileName = `${requestId}_response.txt`;
+			const responseFilePath = path.join(this.logDir, responseFileName);
+
+			const responseContent = `TIMESTAMP: ${timestamp}
+REQUEST_ID: ${requestId}
+MODEL: ${model}
+SOURCE_LANGUAGE: ${sourceLanguage}
+TARGET_LANGUAGE: ${targetLanguage}
+CHUNK_INDEX: ${chunkIndex ?? "N/A"}
+TOTAL_CHUNKS: ${totalChunks ?? "N/A"}
+DURATION_MS: ${duration}
+RESPONSE_LENGTH: ${response.length}
+TRANSLATED_SEGMENTS: ${translatedSegments ?? "N/A"}
+
+=== RESPONSE ===
+${response}
+`;
+
+			await writeFile(responseFilePath, responseContent, "utf8");
+
+			this.logger.debug(
+				{
+					requestId,
+					responseFile: responseFilePath,
+				},
+				"📝 LLM response logged to file",
+			);
+		} catch (error) {
+			this.logger.error(
+				{
+					error: error instanceof Error ? error.message : String(error),
+					requestId,
+				},
+				"❌ Failed to log LLM response to file",
 			);
 		}
 	}
@@ -177,31 +177,8 @@ export class LLMLogger {
 		targetLanguage: string,
 		chunkIndex?: number,
 		totalChunks?: number,
-		metadata?: Record<string, unknown>,
 	): Promise<void> {
-		const timestamp = new Date().toISOString();
-
-		const logEntry = {
-			timestamp,
-			requestId,
-			model,
-			...(chunkIndex !== undefined && { chunkIndex }),
-			...(totalChunks !== undefined && { totalChunks }),
-			sourceLanguage,
-			targetLanguage,
-			request: {
-				prompt,
-				promptLength: prompt.length,
-				segmentsToTranslate: 0,
-				contextSegments: 0,
-			},
-			error: {
-				message: error.message,
-				stack: error.stack,
-				duration,
-			},
-			...(metadata && { metadata }),
-		};
+		const timestamp = this.getTimestamp();
 
 		this.logger.error(
 			{
@@ -218,23 +195,47 @@ export class LLMLogger {
 		try {
 			await this.ensureLogDirectory();
 
-			const logLine = `${JSON.stringify(logEntry)}\n`;
-			await writeFile(this.logFile, logLine, { flag: "a" });
+			// Create error file
+			const errorFileName = `${requestId}_error.txt`;
+			const errorFilePath = path.join(this.logDir, errorFileName);
+
+			const errorContent = `TIMESTAMP: ${timestamp}
+REQUEST_ID: ${requestId}
+MODEL: ${model}
+SOURCE_LANGUAGE: ${sourceLanguage}
+TARGET_LANGUAGE: ${targetLanguage}
+CHUNK_INDEX: ${chunkIndex ?? "N/A"}
+TOTAL_CHUNKS: ${totalChunks ?? "N/A"}
+DURATION_MS: ${duration}
+PROMPT_LENGTH: ${prompt.length}
+
+=== ERROR ===
+MESSAGE: ${error.message}
+STACK: ${error.stack || "No stack trace available"}
+
+=== ORIGINAL PROMPT ===
+${prompt}
+`;
+
+			await writeFile(errorFilePath, errorContent, "utf8");
+
+			this.logger.debug(
+				{
+					requestId,
+					errorFile: errorFilePath,
+				},
+				"📝 LLM error logged to file",
+			);
 		} catch (logError) {
 			this.logger.error(
 				{
 					error:
 						logError instanceof Error ? logError.message : String(logError),
 					requestId,
-					logFile: this.logFile,
 				},
 				"❌ Failed to log LLM error to file",
 			);
 		}
-	}
-
-	getLogFile(): string {
-		return this.logFile;
 	}
 
 	getLogDirectory(): string {

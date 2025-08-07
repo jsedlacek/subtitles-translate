@@ -207,6 +207,64 @@ npm start           # Run the application
 npm run dev         # Run with file watching
 ```
 
+## LLM Request/Response Logging
+
+All LLM requests and responses are automatically logged to separate text files in the `./logs/` directory for debugging and analysis purposes.
+
+### Log Structure
+
+For each LLM request, two files are created:
+- `{requestId}_request.txt` - Contains the full prompt sent to the LLM
+- `{requestId}_response.txt` - Contains the full response received from the LLM
+
+In case of errors, an additional file is created:
+- `{requestId}_error.txt` - Contains error details and the original prompt
+
+### Example Log Files
+
+**Request file** (`req_1705312245123_abc123def_request.txt`):
+```
+TIMESTAMP: 2024-01-15T10:30:45.123Z
+REQUEST_ID: req_1705312245123_abc123def
+MODEL: gemini-2.5-flash
+SOURCE_LANGUAGE: en
+TARGET_LANGUAGE: cs
+CHUNK_INDEX: 1
+TOTAL_CHUNKS: 5
+SEGMENTS_TO_TRANSLATE: 25
+CONTEXT_SEGMENTS: 3
+PROMPT_LENGTH: 1847
+
+=== PROMPT ===
+You are a professional subtitles translator. Translate the following subtitles from en to cs.
+...
+```
+
+**Response file** (`req_1705312245123_abc123def_response.txt`):
+```
+TIMESTAMP: 2024-01-15T10:30:45.890Z
+REQUEST_ID: req_1705312245123_abc123def
+MODEL: gemini-2.5-flash
+SOURCE_LANGUAGE: en
+TARGET_LANGUAGE: cs
+CHUNK_INDEX: 1
+TOTAL_CHUNKS: 5
+DURATION_MS: 1500
+RESPONSE_LENGTH: 892
+TRANSLATED_SEGMENTS: 25
+
+=== RESPONSE ===
+1
+Přeložený text titulků...
+```
+
+### Log Management
+
+- Logs are stored locally in the `./logs/` directory
+- Each request gets a unique ID for easy correlation between request and response
+- Log files are automatically ignored by git (in `.gitignore`)
+- Files include timestamps, chunk information, and performance metrics
+
 ## License
 
 ISC License

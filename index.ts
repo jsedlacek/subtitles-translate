@@ -103,9 +103,8 @@ function initializeLLMLogger(logger: pino.Logger): void {
 	logger.info(
 		{
 			logDir: "./logs",
-			logFile: `llm-requests-${new Date().toISOString().split("T")[0]}.jsonl`,
 		},
-		"📝 LLM logger initialized - all requests and responses will be logged",
+		"📝 LLM logger initialized - all requests and responses will be logged as separate text files",
 	);
 }
 

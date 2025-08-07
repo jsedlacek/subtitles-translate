@@ -1,15 +1,14 @@
 import assert from "node:assert";
 import { existsSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
-import path from "node:path";
+import { readdir, readFile, rm } from "node:fs/promises";
 import { test } from "node:test";
 import pino from "pino";
-import { createLLMLogger, type LLMLogEntry, LLMLogger } from "./llm-logger.ts";
+import { createLLMLogger, LLMLogger } from "./llm-logger.ts";
 
 // Create a test logger that doesn't output to console
 const testLogger = pino({ level: "silent" });
 
-test("LLMLogger - basic functionality", async () => {
+test("LLMLogger - basic request and response logging", async () => {
 	const testLogDir = "./test-logs";
 	const logger = new LLMLogger(testLogger, testLogDir);
 
@@ -35,43 +34,49 @@ test("LLMLogger - basic functionality", async () => {
 	await logger.logResponse(
 		requestId,
 		"gemini-2.5-flash",
-		"Test prompt for translation",
 		"Translated response content",
 		1500,
 		"en",
 		"es",
 		1,
 		5,
-		10,
-		3,
 		8,
-		{ testMetadata: "value" },
 	);
 
-	// Verify log file was created
-	const logFile = logger.getLogFile();
-	assert.ok(existsSync(logFile));
+	// Verify log files were created
+	assert.ok(existsSync(testLogDir));
 
-	// Read and verify log content
-	const logContent = await readFile(logFile, "utf8");
-	const logLines = logContent.trim().split("\n");
-	assert.strictEqual(logLines.length, 1);
+	const requestFile = `${testLogDir}/${requestId}_request.txt`;
+	const responseFile = `${testLogDir}/${requestId}_response.txt`;
 
-	const logEntry: LLMLogEntry = JSON.parse(logLines[0]!);
-	assert.strictEqual(logEntry.requestId, requestId);
-	assert.strictEqual(logEntry.model, "gemini-2.5-flash");
-	assert.strictEqual(logEntry.sourceLanguage, "en");
-	assert.strictEqual(logEntry.targetLanguage, "es");
-	assert.strictEqual(logEntry.chunkIndex, 1);
-	assert.strictEqual(logEntry.totalChunks, 5);
-	assert.strictEqual(logEntry.request.prompt, "Test prompt for translation");
-	assert.strictEqual(logEntry.request.segmentsToTranslate, 10);
-	assert.strictEqual(logEntry.request.contextSegments, 3);
-	assert.strictEqual(logEntry.response.content, "Translated response content");
-	assert.strictEqual(logEntry.response.duration, 1500);
-	assert.strictEqual(logEntry.response.translatedSegments, 8);
-	assert.ok(logEntry.timestamp);
-	assert.deepStrictEqual(logEntry.metadata, { testMetadata: "value" });
+	assert.ok(existsSync(requestFile));
+	assert.ok(existsSync(responseFile));
+
+	// Read and verify request file content
+	const requestContent = await readFile(requestFile, "utf8");
+	assert.ok(requestContent.includes(`REQUEST_ID: ${requestId}`));
+	assert.ok(requestContent.includes("MODEL: gemini-2.5-flash"));
+	assert.ok(requestContent.includes("SOURCE_LANGUAGE: en"));
+	assert.ok(requestContent.includes("TARGET_LANGUAGE: es"));
+	assert.ok(requestContent.includes("CHUNK_INDEX: 1"));
+	assert.ok(requestContent.includes("TOTAL_CHUNKS: 5"));
+	assert.ok(requestContent.includes("SEGMENTS_TO_TRANSLATE: 10"));
+	assert.ok(requestContent.includes("CONTEXT_SEGMENTS: 3"));
+	assert.ok(requestContent.includes("=== PROMPT ==="));
+	assert.ok(requestContent.includes("Test prompt for translation"));
+
+	// Read and verify response file content
+	const responseContent = await readFile(responseFile, "utf8");
+	assert.ok(responseContent.includes(`REQUEST_ID: ${requestId}`));
+	assert.ok(responseContent.includes("MODEL: gemini-2.5-flash"));
+	assert.ok(responseContent.includes("SOURCE_LANGUAGE: en"));
+	assert.ok(responseContent.includes("TARGET_LANGUAGE: es"));
+	assert.ok(responseContent.includes("CHUNK_INDEX: 1"));
+	assert.ok(responseContent.includes("TOTAL_CHUNKS: 5"));
+	assert.ok(responseContent.includes("DURATION_MS: 1500"));
+	assert.ok(responseContent.includes("TRANSLATED_SEGMENTS: 8"));
+	assert.ok(responseContent.includes("=== RESPONSE ==="));
+	assert.ok(responseContent.includes("Translated response content"));
 
 	// Clean up
 	await rm(testLogDir, { recursive: true });
@@ -108,34 +113,32 @@ test("LLMLogger - error logging", async () => {
 		"fr",
 		0,
 		1,
-		{ errorContext: "test" },
 	);
 
-	// Verify log file was created
-	const logFile = logger.getLogFile();
-	assert.ok(existsSync(logFile));
+	// Verify log files were created
+	const requestFile = `${testLogDir}/${requestId}_request.txt`;
+	const errorFile = `${testLogDir}/${requestId}_error.txt`;
 
-	// Read and verify log content
-	const logContent = await readFile(logFile, "utf8");
-	const logLines = logContent.trim().split("\n");
-	assert.strictEqual(logLines.length, 1);
+	assert.ok(existsSync(requestFile));
+	assert.ok(existsSync(errorFile));
 
-	const logEntry = JSON.parse(logLines[0]!);
-	assert.strictEqual(logEntry.requestId, requestId);
-	assert.strictEqual(logEntry.model, "gemini-2.5-flash");
-	assert.strictEqual(logEntry.sourceLanguage, "en");
-	assert.strictEqual(logEntry.targetLanguage, "fr");
-	assert.strictEqual(logEntry.request.prompt, "Test prompt that will fail");
-	assert.strictEqual(logEntry.error.message, "API rate limit exceeded");
-	assert.strictEqual(logEntry.error.duration, 2000);
-	assert.ok(logEntry.error.stack);
-	assert.deepStrictEqual(logEntry.metadata, { errorContext: "test" });
+	// Read and verify error file content
+	const errorContent = await readFile(errorFile, "utf8");
+	assert.ok(errorContent.includes(`REQUEST_ID: ${requestId}`));
+	assert.ok(errorContent.includes("MODEL: gemini-2.5-flash"));
+	assert.ok(errorContent.includes("SOURCE_LANGUAGE: en"));
+	assert.ok(errorContent.includes("TARGET_LANGUAGE: fr"));
+	assert.ok(errorContent.includes("DURATION_MS: 2000"));
+	assert.ok(errorContent.includes("=== ERROR ==="));
+	assert.ok(errorContent.includes("MESSAGE: API rate limit exceeded"));
+	assert.ok(errorContent.includes("=== ORIGINAL PROMPT ==="));
+	assert.ok(errorContent.includes("Test prompt that will fail"));
 
 	// Clean up
 	await rm(testLogDir, { recursive: true });
 });
 
-test("LLMLogger - multiple requests", async () => {
+test("LLMLogger - multiple requests create separate files", async () => {
 	const testLogDir = "./test-logs-multiple";
 	const logger = new LLMLogger(testLogger, testLogDir);
 
@@ -162,7 +165,6 @@ test("LLMLogger - multiple requests", async () => {
 		await logger.logResponse(
 			requestId,
 			"gemini-2.5-flash",
-			`Test prompt ${i}`,
 			`Response ${i}`,
 			1000 + i * 100,
 			"en",
@@ -170,28 +172,29 @@ test("LLMLogger - multiple requests", async () => {
 			i,
 			3,
 			5,
-			2,
-			5,
 		);
 	}
 
-	// Verify log file was created
-	const logFile = logger.getLogFile();
-	assert.ok(existsSync(logFile));
+	// Verify all files were created
+	const files = await readdir(testLogDir);
+	assert.strictEqual(files.length, 6); // 3 requests + 3 responses
 
-	// Read and verify log content
-	const logContent = await readFile(logFile, "utf8");
-	const logLines = logContent.trim().split("\n");
-	assert.strictEqual(logLines.length, 3);
-
-	// Verify each log entry
+	// Verify each request/response pair
 	for (let i = 0; i < 3; i++) {
-		const logEntry: LLMLogEntry = JSON.parse(logLines[i]!);
-		assert.strictEqual(logEntry.requestId, requestIds[i]);
-		assert.strictEqual(logEntry.chunkIndex, i);
-		assert.strictEqual(logEntry.request.prompt, `Test prompt ${i}`);
-		assert.strictEqual(logEntry.response.content, `Response ${i}`);
-		assert.strictEqual(logEntry.response.duration, 1000 + i * 100);
+		const requestId = requestIds[i]!;
+		const requestFile = `${testLogDir}/${requestId}_request.txt`;
+		const responseFile = `${testLogDir}/${requestId}_response.txt`;
+
+		assert.ok(existsSync(requestFile));
+		assert.ok(existsSync(responseFile));
+
+		const requestContent = await readFile(requestFile, "utf8");
+		const responseContent = await readFile(responseFile, "utf8");
+
+		assert.ok(requestContent.includes(`Test prompt ${i}`));
+		assert.ok(requestContent.includes(`CHUNK_INDEX: ${i}`));
+		assert.ok(responseContent.includes(`Response ${i}`));
+		assert.ok(responseContent.includes(`DURATION_MS: ${1000 + i * 100}`));
 	}
 
 	// Clean up
@@ -208,18 +211,6 @@ test("LLMLogger - singleton pattern", () => {
 	// The log directory should be from the first creation
 	assert.strictEqual(logger1.getLogDirectory(), "./test-singleton-1");
 	assert.strictEqual(logger2.getLogDirectory(), "./test-singleton-1");
-});
-
-test("LLMLogger - date-based log files", () => {
-	const testLogDir = "./test-logs-date";
-	const logger = new LLMLogger(testLogger, testLogDir);
-
-	const logFile = logger.getLogFile();
-	const expectedDate = new Date().toISOString().split("T")[0];
-	const expectedFileName = `llm-requests-${expectedDate}.jsonl`;
-
-	assert.ok(logFile.endsWith(expectedFileName));
-	assert.strictEqual(path.basename(logFile), expectedFileName);
 });
 
 test("LLMLogger - directory creation", async () => {
@@ -246,7 +237,6 @@ test("LLMLogger - directory creation", async () => {
 	await logger.logResponse(
 		requestId,
 		"gemini-2.5-flash",
-		"Test prompt",
 		"Test response",
 		1000,
 		"en",
@@ -284,4 +274,53 @@ test("LLMLogger - request ID generation", async () => {
 		assert.ok(requestId.startsWith("req_"));
 		assert.ok(requestId.length > 10);
 	}
+});
+
+test("LLMLogger - handles optional parameters", async () => {
+	const testLogDir = "./test-logs-optional";
+	const logger = new LLMLogger(testLogger, testLogDir);
+
+	// Clean up any existing test logs
+	if (existsSync(testLogDir)) {
+		await rm(testLogDir, { recursive: true });
+	}
+
+	// Log request with minimal parameters
+	const requestId = await logger.logRequest(
+		"gemini-2.5-flash",
+		"Minimal prompt",
+		"en",
+		"es",
+	);
+
+	await logger.logResponse(
+		requestId,
+		"gemini-2.5-flash",
+		"Minimal response",
+		500,
+		"en",
+		"es",
+	);
+
+	// Verify files were created and contain N/A for optional fields
+	const requestFile = `${testLogDir}/${requestId}_request.txt`;
+	const responseFile = `${testLogDir}/${requestId}_response.txt`;
+
+	assert.ok(existsSync(requestFile));
+	assert.ok(existsSync(responseFile));
+
+	const requestContent = await readFile(requestFile, "utf8");
+	const responseContent = await readFile(responseFile, "utf8");
+
+	assert.ok(requestContent.includes("CHUNK_INDEX: N/A"));
+	assert.ok(requestContent.includes("TOTAL_CHUNKS: N/A"));
+	assert.ok(requestContent.includes("SEGMENTS_TO_TRANSLATE: N/A"));
+	assert.ok(requestContent.includes("CONTEXT_SEGMENTS: N/A"));
+
+	assert.ok(responseContent.includes("CHUNK_INDEX: N/A"));
+	assert.ok(responseContent.includes("TOTAL_CHUNKS: N/A"));
+	assert.ok(responseContent.includes("TRANSLATED_SEGMENTS: N/A"));
+
+	// Clean up
+	await rm(testLogDir, { recursive: true });
 });

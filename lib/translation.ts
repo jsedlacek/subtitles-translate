@@ -124,15 +124,12 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 			await llmLogger.logResponse(
 				requestId,
 				"gemini-2.5-flash",
-				prompt,
 				finalContent,
 				duration,
 				sourceLanguage,
 				targetLanguage,
 				chunk.chunkIndex,
 				chunk.totalChunks,
-				chunk.translateSegments.length,
-				chunk.contextSegments.length,
 				translatedEntries.length,
 			);
 		}
