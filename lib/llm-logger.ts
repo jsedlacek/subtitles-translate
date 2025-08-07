@@ -156,5 +156,4 @@ ${prompt}
 
 		await this.writer.write(errorFileName, errorContent);
 	}
-
 }

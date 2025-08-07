@@ -1,8 +1,8 @@
 import assert from "node:assert";
 import { test } from "node:test";
 import pino from "pino";
-import type { LogWriter } from "./log-writer.ts";
 import { LLMLogger } from "./llm-logger.ts";
+import type { LogWriter } from "./log-writer.ts";
 
 class TestLogWriter implements LogWriter {
 	public logs: Map<string, string> = new Map();
@@ -11,7 +11,6 @@ class TestLogWriter implements LogWriter {
 		this.logs.set(fileName, content);
 		return Promise.resolve();
 	}
-
 
 	clear() {
 		this.logs.clear();
