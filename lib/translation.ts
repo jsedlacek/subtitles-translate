@@ -162,7 +162,6 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 	);
 
 	let translatedContent = "";
-	let error: Error | null = null;
 
 	try {
 		const stream = await model.models.generateContentStream({
@@ -173,40 +172,40 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 		for await (const streamChunk of stream) {
 			translatedContent += streamChunk.text || "";
 		}
-	} catch (err) {
-		error = err instanceof Error ? err : new Error(String(err));
-		throw error;
-	} finally {
+
+		// Log successful response
 		const duration = Date.now() - startTime;
+		const finalContent = translatedContent.trim();
+		const translatedEntries = parseSRTLikeFormat(finalContent);
 
-		if (error) {
-			await llmLogger.logError(
-				requestId,
-				"gemini-2.5-flash",
-				prompt,
-				error,
-				duration,
-				sourceLanguage,
-				targetLanguage,
-				chunk.chunkIndex,
-				chunk.totalChunks,
-			);
-		} else {
-			const finalContent = translatedContent.trim();
-			const translatedEntries = parseSRTLikeFormat(finalContent);
+		await llmLogger.logResponse(
+			requestId,
+			"gemini-2.5-flash",
+			finalContent,
+			duration,
+			sourceLanguage,
+			targetLanguage,
+			chunk.chunkIndex,
+			chunk.totalChunks,
+			translatedEntries.length,
+		);
+	} catch (err) {
+		const duration = Date.now() - startTime;
+		const error = err instanceof Error ? err : new Error(String(err));
 
-			await llmLogger.logResponse(
-				requestId,
-				"gemini-2.5-flash",
-				finalContent,
-				duration,
-				sourceLanguage,
-				targetLanguage,
-				chunk.chunkIndex,
-				chunk.totalChunks,
-				translatedEntries.length,
-			);
-		}
+		await llmLogger.logError(
+			requestId,
+			"gemini-2.5-flash",
+			prompt,
+			error,
+			duration,
+			sourceLanguage,
+			targetLanguage,
+			chunk.chunkIndex,
+			chunk.totalChunks,
+		);
+
+		throw error;
 	}
 
 	const finalContent = translatedContent.trim();
