@@ -161,17 +161,13 @@ Remember: Output ONLY the ${chunk.translateSegments.length} segments listed abov
 		chunk.contextSegments.length,
 	);
 
-	let translatedContent = "";
-
 	try {
-		const stream = await model.models.generateContentStream({
+		const response = await model.models.generateContent({
 			model: "gemini-2.5-flash",
 			contents: prompt,
 		});
 
-		for await (const streamChunk of stream) {
-			translatedContent += streamChunk.text || "";
-		}
+		const translatedContent = response.text || "";
 
 		// Log successful response
 		const duration = Date.now() - startTime;
