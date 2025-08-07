@@ -7,7 +7,9 @@ import OpenSubtitles from "opensubtitles.com";
 import pino from "pino";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { countSRTSegments, translateSRTContent } from "./lib.ts";
+import { createLLMLogger } from "./lib/llm-logger.ts";
+import { translateSRTContent } from "./lib/main.ts";
+import { countSRTSegments } from "./lib/srt.ts";
 
 /**
  * Create and configure pino logger
@@ -91,6 +93,20 @@ async function createOpenSubtitlesClient(
  */
 function createGeminiModel(apiKey: string) {
 	return new GoogleGenAI({ apiKey });
+}
+
+/**
+ * Initialize LLM logger
+ */
+function initializeLLMLogger(logger: pino.Logger): void {
+	createLLMLogger(logger);
+	logger.info(
+		{
+			logDir: "./logs",
+			logFile: `llm-requests-${new Date().toISOString().split("T")[0]}.jsonl`,
+		},
+		"📝 LLM logger initialized - all requests and responses will be logged",
+	);
 }
 
 /**
@@ -534,6 +550,10 @@ async function main(): Promise<void> {
 		validateEnvironment(requiredEnvVars);
 
 		const config = createConfig(args);
+
+		// Initialize LLM logger
+		initializeLLMLogger(logger);
+
 		let result: { original: string; translated: string };
 
 		if (args.search) {

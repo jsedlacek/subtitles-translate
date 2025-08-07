@@ -20,13 +20,25 @@
 - [ ] Set allowImportingTsExtensions: true if using .ts imports
 - [ ] Always test: npm run type-check AND actual runtime execution
 
-## 4. TESTING BEST PRACTICES
+## 4. MODERN JAVASCRIPT SYNTAX
+- [ ] Use for...of loops instead of traditional for loops when iterating arrays
+- [ ] Use destructuring assignment for objects and arrays where appropriate
+- [ ] Prefer const/let over var - use const by default, let only when reassignment needed
+- [ ] Use template literals (backticks) instead of string concatenation
+- [ ] Use arrow functions for callbacks and short functions
+- [ ] Use async/await instead of Promise chains where possible
+- [ ] Use spread operator (...) for array/object copying and merging
+- [ ] Use optional chaining (?.) and nullish coalescing (??) operators
+- [ ] Use Array methods (map, filter, reduce, find, some, every) over manual loops
+- [ ] Use object shorthand properties when variable name matches property name
+
+## 5. TESTING BEST PRACTICES
 - [ ] Use optional chaining (?.) or proper null checks when accessing array elements
 - [ ] Never assume array[0] exists - always check array[0]?.property
 - [ ] Write defensive assertions that won't fail on undefined
 - [ ] Test edge cases: empty arrays, undefined values, malformed input
 
-## 5. REFACTORING WORKFLOW
+## 6. REFACTORING WORKFLOW
 1. [ ] Analyze existing code structure completely
 2. [ ] Identify what needs to be extracted/separated
 3. [ ] Create new files with proper exports
@@ -34,25 +46,25 @@
 5. [ ] Test after each major change
 6. [ ] Fix TypeScript errors before moving to next step
 
-## 6. ERROR HANDLING STRATEGY
+## 7. ERROR HANDLING STRATEGY
 - [ ] Fix the ROOT CAUSE, not symptoms
 - [ ] If getting import errors, understand the module system being used
 - [ ] If getting TypeScript errors, fix configuration before changing code
 - [ ] Don't apply quick fixes without understanding why they're needed
 
-## 7. FILE ORGANIZATION
+## 8. FILE ORGANIZATION
 - [ ] Separate concerns clearly: lib files for core logic, index for application
 - [ ] Export all testable functions from library files
 - [ ] Keep main application entry point clean and focused
 - [ ] Use consistent naming: lib.ts + lib.test.ts patterns
 
-## 8. TESTING REQUIREMENTS
+## 9. TESTING REQUIREMENTS
 - [ ] Test files should import from the library they're testing
 - [ ] Use Node.js native testing if no other framework is configured
 - [ ] Cover happy path, edge cases, and error conditions
 - [ ] Ensure tests work with the actual module system (ESM/CommonJS)
 
-## 9. VALIDATION CHECKLIST BEFORE COMPLETION
+## 10. VALIDATION CHECKLIST BEFORE COMPLETION
 - [ ] npm run type-check passes
 - [ ] npm test passes
 - [ ] All imports resolve correctly
@@ -60,11 +72,37 @@
 - [ ] Original functionality preserved
 - [ ] New functionality properly tested
 
-## 10. COMMUNICATION RULES
+## 11. COMMUNICATION RULES
 - [ ] Explain what went wrong when mistakes are made
 - [ ] Acknowledge configuration misunderstandings
 - [ ] Show the systematic approach being taken to fix issues
 - [ ] Don't hide behind "TypeScript experimental feature" excuses
+
+## 12. MODULAR REFACTORING BEST PRACTICES
+- [ ] Break large monolithic files (>500 lines) into focused modules
+- [ ] Each module should have a single, clear responsibility
+- [ ] Co-locate tests with source files (module.ts + module.test.ts)
+- [ ] Avoid unnecessary index files - import directly from specific modules
+- [ ] Remove intermediate orchestration files when direct imports work better
+- [ ] Use glob patterns for test discovery instead of manual test registration
+- [ ] Test auto-discovery reduces maintenance overhead and human error
+- [ ] Clean directory structure: source files next to their tests
+- [ ] Module boundaries should follow domain concepts, not technical layers
+
+## 13. TEST ORGANIZATION PRINCIPLES
+- [ ] Co-located tests are easier to find and maintain
+- [ ] Use `npm test 'pattern/**/*.test.ts'` for auto-discovery
+- [ ] Avoid test index files that require manual maintenance
+- [ ] Each module's tests should be completely independent
+- [ ] Integration tests can be separate but should also be co-located in logical groups
+- [ ] Test file naming: exact match with source file + .test.ts suffix
+
+## 14. IMPORT STRATEGY FOR MODULAR ARCHITECTURE
+- [ ] Import exactly what you need from specific modules
+- [ ] Avoid barrel exports (index.ts re-exporting everything)
+- [ ] Direct imports make dependencies explicit and traceable
+- [ ] Module boundaries become clear through import patterns
+- [ ] Easier to identify circular dependencies with direct imports
 
 ## EMERGENCY DEBUGGING STEPS
 When things break:
