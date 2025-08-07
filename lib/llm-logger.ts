@@ -1,15 +1,13 @@
-import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import type pino from "pino";
+import type { LogWriter } from "./log-writer.ts";
 
 export class LLMLogger {
-	private logDir: string;
 	private logger: pino.Logger;
+	private writer: LogWriter;
 
-	constructor(logger: pino.Logger, logDir = "./logs") {
+	constructor(logger: pino.Logger, writer: LogWriter) {
 		this.logger = logger;
-		this.logDir = logDir;
+		this.writer = writer;
 	}
 
 	private generateRequestId(): string {
@@ -18,13 +16,6 @@ export class LLMLogger {
 
 	private getTimestamp(): string {
 		return new Date().toISOString();
-	}
-
-	async ensureLogDirectory(): Promise<void> {
-		if (!existsSync(this.logDir)) {
-			await mkdir(this.logDir, { recursive: true });
-			this.logger.debug({ logDir: this.logDir }, "Created LLM logs directory");
-		}
 	}
 
 	async logRequest(
@@ -40,7 +31,6 @@ export class LLMLogger {
 		const requestId = this.generateRequestId();
 		const timestamp = this.getTimestamp();
 
-		// Log the request start
 		this.logger.debug(
 			{
 				requestId,
@@ -54,14 +44,8 @@ export class LLMLogger {
 			"🤖 LLM request started"
 		);
 
-		try {
-			await this.ensureLogDirectory();
-
-			// Create request file
-			const requestFileName = `${requestId}_request.txt`;
-			const requestFilePath = path.join(this.logDir, requestFileName);
-
-			const requestContent = `TIMESTAMP: ${timestamp}
+		const requestFileName = `${requestId}_request.txt`;
+		const requestContent = `TIMESTAMP: ${timestamp}
 REQUEST_ID: ${requestId}
 MODEL: ${model}
 SOURCE_LANGUAGE: ${sourceLanguage}
@@ -76,24 +60,7 @@ PROMPT_LENGTH: ${prompt.length}
 ${prompt}
 `;
 
-			await writeFile(requestFilePath, requestContent, "utf8");
-
-			this.logger.debug(
-				{
-					requestId,
-					requestFile: requestFilePath,
-				},
-				"📝 LLM request logged to file"
-			);
-		} catch (error) {
-			this.logger.error(
-				{
-					error: error instanceof Error ? error.message : String(error),
-					requestId,
-				},
-				"❌ Failed to log LLM request to file"
-			);
-		}
+		await this.writer.write(requestFileName, requestContent);
 
 		return requestId;
 	}
@@ -111,7 +78,6 @@ ${prompt}
 	): Promise<void> {
 		const timestamp = this.getTimestamp();
 
-		// Log completion with summary
 		this.logger.debug(
 			{
 				requestId,
@@ -125,14 +91,8 @@ ${prompt}
 			"✅ LLM request completed"
 		);
 
-		try {
-			await this.ensureLogDirectory();
-
-			// Create response file
-			const responseFileName = `${requestId}_response.txt`;
-			const responseFilePath = path.join(this.logDir, responseFileName);
-
-			const responseContent = `TIMESTAMP: ${timestamp}
+		const responseFileName = `${requestId}_response.txt`;
+		const responseContent = `TIMESTAMP: ${timestamp}
 REQUEST_ID: ${requestId}
 MODEL: ${model}
 SOURCE_LANGUAGE: ${sourceLanguage}
@@ -147,24 +107,7 @@ TRANSLATED_SEGMENTS: ${translatedSegments ?? "N/A"}
 ${response}
 `;
 
-			await writeFile(responseFilePath, responseContent, "utf8");
-
-			this.logger.debug(
-				{
-					requestId,
-					responseFile: responseFilePath,
-				},
-				"📝 LLM response logged to file"
-			);
-		} catch (error) {
-			this.logger.error(
-				{
-					error: error instanceof Error ? error.message : String(error),
-					requestId,
-				},
-				"❌ Failed to log LLM response to file"
-			);
-		}
+		await this.writer.write(responseFileName, responseContent);
 	}
 
 	async logError(
@@ -192,14 +135,8 @@ ${response}
 			"❌ LLM request failed"
 		);
 
-		try {
-			await this.ensureLogDirectory();
-
-			// Create error file
-			const errorFileName = `${requestId}_error.txt`;
-			const errorFilePath = path.join(this.logDir, errorFileName);
-
-			const errorContent = `TIMESTAMP: ${timestamp}
+		const errorFileName = `${requestId}_error.txt`;
+		const errorContent = `TIMESTAMP: ${timestamp}
 REQUEST_ID: ${requestId}
 MODEL: ${model}
 SOURCE_LANGUAGE: ${sourceLanguage}
@@ -217,44 +154,7 @@ STACK: ${error.stack || "No stack trace available"}
 ${prompt}
 `;
 
-			await writeFile(errorFilePath, errorContent, "utf8");
-
-			this.logger.debug(
-				{
-					requestId,
-					errorFile: errorFilePath,
-				},
-				"📝 LLM error logged to file"
-			);
-		} catch (logError) {
-			this.logger.error(
-				{
-					error: logError instanceof Error ? logError.message : String(logError),
-					requestId,
-				},
-				"❌ Failed to log LLM error to file"
-			);
-		}
+		await this.writer.write(errorFileName, errorContent);
 	}
 
-	getLogDirectory(): string {
-		return this.logDir;
-	}
-}
-
-// Utility function to create a singleton LLM logger instance
-let globalLLMLogger: LLMLogger | null = null;
-
-export function createLLMLogger(logger: pino.Logger, logDir?: string): LLMLogger {
-	if (!globalLLMLogger) {
-		globalLLMLogger = new LLMLogger(logger, logDir);
-	}
-	return globalLLMLogger;
-}
-
-export function getLLMLogger(): LLMLogger {
-	if (!globalLLMLogger) {
-		throw new Error("LLM logger not initialized. Call createLLMLogger() first.");
-	}
-	return globalLLMLogger;
 }
