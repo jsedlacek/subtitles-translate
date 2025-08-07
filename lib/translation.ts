@@ -2,7 +2,7 @@ import type { GoogleGenAI } from "@google/genai";
 import type pino from "pino";
 import type { ChunkInfo } from "./chunking.ts";
 import { createIntelligentChunks } from "./chunking.ts";
-import { getLLMLogger } from "./llm-logger.ts";
+import type { LLMLogger } from "./llm-logger.ts";
 import type { SRTSegment } from "./srt.ts";
 import { parseSRTLikeFormat } from "./srt.ts";
 import type { TranscriptEntry } from "./transcript.ts";
@@ -13,7 +13,8 @@ async function translateChunk(
 	chunk: ChunkInfo,
 	sourceLanguage: string,
 	targetLanguage: string,
-	logger: pino.Logger
+	logger: pino.Logger,
+	llmLogger: LLMLogger
 ): Promise<{
 	entries: TranscriptEntry[];
 	rawInput: string;
@@ -31,6 +32,7 @@ async function translateChunk(
 				sourceLanguage,
 				targetLanguage,
 				logger,
+				llmLogger,
 				attempt
 			);
 		} catch (error) {
@@ -83,6 +85,7 @@ async function translateChunkAttempt(
 	sourceLanguage: string,
 	targetLanguage: string,
 	logger: pino.Logger,
+	llmLogger: LLMLogger,
 	attempt: number
 ): Promise<{
 	entries: TranscriptEntry[];
@@ -139,7 +142,6 @@ ${translateSegmentNumbers[1] ?? (translateSegmentNumbers[0] ? translateSegmentNu
 
 Remember: Output ONLY the ${chunk.translateSegments.length} segments listed above, maintaining exact 1:1 mapping.`;
 
-	const llmLogger = getLLMLogger();
 	const startTime = Date.now();
 
 	// Log the request
@@ -253,6 +255,7 @@ export async function translateTranscript(
 	sourceLanguage: string,
 	targetLanguage: string,
 	logger: pino.Logger,
+	llmLogger: LLMLogger,
 	onProgress?: (progress: { completed: number; total: number; percentage: number }) => void
 ): Promise<{
 	translatedEntries: TranscriptEntry[];
@@ -319,7 +322,14 @@ export async function translateTranscript(
 			"Starting concurrent chunk processing"
 		);
 
-		const chunkResult = await translateChunk(model, chunk, sourceLanguage, targetLanguage, logger);
+		const chunkResult = await translateChunk(
+			model,
+			chunk,
+			sourceLanguage,
+			targetLanguage,
+			logger,
+			llmLogger
+		);
 
 		// Update progress after this chunk completes
 		updateProgress(chunkResult.entries.length);

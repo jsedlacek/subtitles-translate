@@ -7,7 +7,8 @@ import OpenSubtitles from "opensubtitles.com";
 import pino from "pino";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { createLLMLogger } from "./lib/llm-logger.ts";
+import { LLMLogger } from "./lib/llm-logger.ts";
+import { FileLogWriter } from "./lib/log-writer.ts";
 import { translateSRTContent } from "./lib/main.ts";
 import { countSRTSegments } from "./lib/srt.ts";
 
@@ -93,14 +94,16 @@ function createGeminiModel(apiKey: string) {
 /**
  * Initialize LLM logger
  */
-function initializeLLMLogger(logger: pino.Logger): void {
-	createLLMLogger(logger);
+function initializeLLMLogger(logger: pino.Logger): LLMLogger {
+	const writer = new FileLogWriter(logger);
+	const llmLogger = new LLMLogger(logger, writer);
 	logger.info(
 		{
 			logDir: "./logs",
 		},
 		"📝 LLM logger initialized - all requests and responses will be logged as separate text files"
 	);
+	return llmLogger;
 }
 
 /**
@@ -192,7 +195,8 @@ async function translateSubtitlesFile(
 	inputPath: string,
 	outputPath: string,
 	sourceLanguage: string,
-	targetLanguage: string
+	targetLanguage: string,
+	llmLogger: LLMLogger
 ): Promise<string> {
 	logger.info(
 		{
@@ -227,6 +231,7 @@ async function translateSubtitlesFile(
 			sourceLanguage,
 			targetLanguage,
 			logger,
+			llmLogger,
 			(progress) => {
 				logger.info(
 					{
@@ -268,6 +273,7 @@ async function translateSubtitlesFile(
 async function processSubtitlesFromSearch(
 	config: Config,
 	query: string,
+	llmLogger: LLMLogger,
 	outputPath?: string
 ): Promise<{ original: string; translated: string }> {
 	logger.info(
@@ -317,7 +323,8 @@ async function processSubtitlesFromSearch(
 		downloadedPath,
 		translatedPath,
 		config.sourceLanguage,
-		config.targetLanguage
+		config.targetLanguage,
+		llmLogger
 	);
 
 	return {
@@ -332,6 +339,7 @@ async function processSubtitlesFromSearch(
 async function processSubtitlesFromFile(
 	config: Config,
 	inputPath: string,
+	llmLogger: LLMLogger,
 	outputPath?: string
 ): Promise<{ original: string; translated: string }> {
 	logger.info(
@@ -360,7 +368,8 @@ async function processSubtitlesFromFile(
 		inputPath,
 		translatedPath,
 		config.sourceLanguage,
-		config.targetLanguage
+		config.targetLanguage,
+		llmLogger
 	);
 
 	return {
@@ -524,16 +533,16 @@ async function main(): Promise<void> {
 		const config = createConfig(args);
 
 		// Initialize LLM logger
-		initializeLLMLogger(logger);
+		const llmLogger = initializeLLMLogger(logger);
 
 		let result: { original: string; translated: string };
 
 		if (args.search) {
 			// Search and download subtitles
-			result = await processSubtitlesFromSearch(config, args.search, args.output);
+			result = await processSubtitlesFromSearch(config, args.search, llmLogger, args.output);
 		} else if (args.input) {
 			// Translate local file
-			result = await processSubtitlesFromFile(config, args.input, args.output);
+			result = await processSubtitlesFromFile(config, args.input, llmLogger, args.output);
 		} else {
 			throw new Error("Either --search or --input must be provided");
 		}
